@@ -93,10 +93,18 @@ V_MAC, R_MAC = "02:00:00:00:00:02", "02:00:00:00:00:01"
 
 
 def setup_vnet():
+    """Siapkan jaringan virtual terisolasi.
+
+    Butuh CAP_NET_ADMIN untuk membuat network namespace. Bila tidak
+    tersedia (mis. runner CI tanpa privileged), test di-skip, bukan gagal.
+    """
     sh(f"ip netns del {NS_V} 2>/dev/null; ip netns del {NS_R} 2>/dev/null")
     for i in ("vh1", "vh2", "vh1v", "vh2r"):
         sh(f"ip link del {i} 2>/dev/null")
-    sh(f"ip netns add {NS_V}; ip netns add {NS_R}")
+    rc, out = sh(f"ip netns add {NS_V}")
+    if rc != 0:
+        raise PermissionError(out or "tidak bisa membuat network namespace")
+    sh(f"ip netns add {NS_R}")
     sh(f"ip link add vh1 type veth peer name vh1v")
     sh(f"ip link add vh2 type veth peer name vh2r")
     sh(f"ip link set vh1v netns {NS_V}; ip link set vh2r netns {NS_R}")
@@ -155,7 +163,13 @@ def victim_ping():
 
 def test_vnet():
     print("\n[2] JARINGAN VIRTUAL", flush=True)
-    setup_vnet()
+    try:
+        setup_vnet()
+    except PermissionError as exc:
+        print(f"  SKIP  butuh CAP_NET_ADMIN untuk network namespace ({exc})",
+              flush=True)
+        print("        jalankan dengan: sudo python3 test_suite.py", flush=True)
+        return
     ok, detail = victim_ping()
     check("baseline konektivitas korban", ok, detail)
 
@@ -221,7 +235,10 @@ def test_netchange():
     FAKE_GW = "192.168.50.1"
 
     st = webgui.WebState(IFACE)
-    sh(f"ip route replace default via 192.168.1.1 dev {IFACE}")
+    rc, _ = sh(f"ip route replace default via 192.168.1.1 dev {IFACE}")
+    if rc != 0:
+        print("  SKIP  butuh hak untuk mengubah route interface uji", flush=True)
+        return
     time.sleep(0.5)
     st.net_info = current_network(IFACE)
     st._net_sig = (st.net_info.get("gateway", ""), st.net_info.get("ip", ""),
