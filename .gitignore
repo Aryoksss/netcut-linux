@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+*.so
+*.o
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+# screenshot & artefak
+out/
+*.png
+!assets/*.png
+
+# hasil build
+netcut-launcher
+
+# state runtime
+.cache/
+*.pid
+*.log
+
+# editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# artefak build lokal
+.build_*.py
