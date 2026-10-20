@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
 """netcut - Linux network bandwidth monitor & traffic controller.
 
-Arsitektur mengikuti analisis REA terhadap NetCut (arcai.com) Windows build:
+Komponen utama:
 
-    VCNetCutSniffer2   -> raw AF_PACKET capture + promiscuous mode
-    CNetCutDiscover    -> ARP scan + neighbour table
-    CNetCutSpoofer     -> (tidak diimplementasi; digantikan nftables)
-    CNetCutSpeedLimiter-> nftables rate limiter
-    CNetCutNetLock     -> nftables drop (blokir host)
-    macdata            -> oui.txt vendor lookup
+    Sniffer         -> raw AF_PACKET capture + promiscuous mode
+    arp_scan        -> ARP scan + neighbour table
+    TrafficControl  -> nftables rate limiter & drop (blokir host)
+    VendorDB        -> oui.txt vendor lookup
 
-Perbedaan penting dari NetCut Windows:
-  - NetCut memakai ARP spoofing (MITM) untuk memblokir host lain. Itu butuh
-    root, merusak jaringan, dan membocorkan trafik ke laptop kita. Di sini
-    pemblokiran & limit dilakukan lewat nftables, jadi tidak ada ARP reply
-    palsu yang dikirim ke jaringan.
-  - Pemetaan MAC -> vendor memakai /usr/share/hwdata/oui.txt (paket hwdata)
-    alih-alih file 'macdata' bawaan NetCut.
+Blokir & limit device lain membutuhkan ARP spoofing supaya trafiknya melintasi
+laptop lebih dulu - lihat spoof.py. Untuk trafik milik mesin ini sendiri,
+nftables langsung bekerja tanpa perlu ARP spoofing.
 
 Perintah:
   netcut                      monitor real-time (TUI)
@@ -129,7 +123,7 @@ def ip_to_bytes(ip: str) -> bytes:
 
 
 # --------------------------------------------------------------------------
-# capture  (padanan VCNetCutSniffer2)
+# capture
 # --------------------------------------------------------------------------
 
 class Sniffer:
@@ -422,7 +416,7 @@ class InterfaceCounters:
 
 
 # --------------------------------------------------------------------------
-# discovery  (padanan CNetCutDiscover)
+# discovery
 # --------------------------------------------------------------------------
 
 def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
@@ -462,15 +456,15 @@ def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
 
 
 # --------------------------------------------------------------------------
-# traffic control  (padanan CNetCutSpeedLimiter & CNetCutNetLock)
+# traffic control
 # --------------------------------------------------------------------------
 
 class TrafficControl:
-    """Blokir & limit host lewat nftables, bukan ARP spoofing.
+    """Blokir & limit host lewat nftables.
 
-    NetCut Windows memakai ARP spoofing untuk memblokir host, yang berarti
-    trafik host lain melewati laptop kita (MITM). Pendekatan nftables di sini
-    bekerja di level kernel dan tidak mengirim ARP palsu ke jaringan.
+    Aturan di sini bekerja di level kernel. Untuk trafik device lain di LAN,
+    ARP spoofing (lihat spoof.py) diperlukan lebih dulu supaya trafiknya
+    melintasi laptop dan rule-nya bisa kena.
     """
 
     def __init__(self, iface: str, dry_run: bool = False):
@@ -513,7 +507,7 @@ class TrafficControl:
         berlaku untuk trafik milik mesin ini. Device lain di LAN tidak
         pernah melewati laptop, jadi rule-nya tidak pernah kena.
 
-        Solusinya dua tahap (persis seperti CNetCutSpoofer di NetCut):
+        Solusinya dua tahap:
           1. ARP spoof - korban believe gateway berada di MAC laptop kita,
              sehingga trafik korban dialihkan ke laptop.
           2. Rule nftables drop - sekarang rule-nya benar-benar kena
@@ -779,7 +773,7 @@ def main() -> int:
     parser.add_argument("--list-rules", action="store_true", help="tampilkan aturan nftables aktif")
     parser.add_argument("--dry-run", action="store_true", help="tampilkan perintah tanpa eksekusi")
     parser.add_argument("--web", action="store_true",
-                        help="jalankan web GUI di browser (padanan CNetCutWebServer)")
+                        help="jalankan web GUI di browser")
     parser.add_argument("--web-port", type=int, default=8080, help="port web GUI (default 8080)")
     parser.add_argument("--web-host", default="127.0.0.1",
                         help="bind address web GUI (default 127.0.0.1, lokal saja)")

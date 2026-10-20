@@ -1,7 +1,6 @@
 """Web GUI untuk netcut-linux.
 
-Padanan CNetCutWebServer pada NetCut Windows: antarmuka web untuk melihat
-trafik per-host dan mengatur blokir/limit.
+Antarmuka web untuk melihat trafik per-host dan mengatur blokir/limit.
 
 Dipakai lewat:  netcut.py --web [--web-port 8080]
 """

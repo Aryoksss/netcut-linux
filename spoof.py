@@ -1,4 +1,4 @@
-"""ARP spoofing / traffic redirection - padanan CNetCutSpoofer.
+"""ARP spoofing / traffic redirection.
 
 Kenapa modul ini perlu ada
 ---------------------------
@@ -6,14 +6,13 @@ Aturan nftables di laptop hanya berlaku untuk trafik yang *dimiliki* laptop
 itu sendiri (chain input/output). Trafik internet milik perangkat lain di LAN
 tidak pernah melewati laptop karena WiFi bekerja sebagai switch dan router
 yang melakukan forwarding. Karena itu `nft ... drop` tidak pernah menyentuh
-trafik HP lain.
+trafik perangkat lain.
 
-NetCut Windows menyelesaikan ini dengan ARP spoofing (class CNetCutSpoofer
-+ aips.exe "Arp Intelligent Protection Service"): korban diberi tahu bahwa
-MAC gateway adalah MAC laptop kita, sehingga trafik korban ikut dialihkan ke
-laptop dan bisa di-drop atau di-policing.
+ARP spoofing menyelesaikannya: korban diberi tahu bahwa MAC gateway adalah
+MAC laptop kita, sehingga trafik korban ikut dialihkan ke laptop dan bisa
+di-drop atau di-policing.
 
-Modul ini mengimplementasikan hal yang sama dengan Scapy:
+Modul ini mengimplementasikan hal tersebut dengan Scapy:
 
   - victim_only : korban believes gateway is at our MAC  -> block
   - victim+gw   : gateway believes victim is at our MAC  -> full MITM relay
