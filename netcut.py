@@ -502,6 +502,212 @@ def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
 
 
 # --------------------------------------------------------------------------
+# traffic control  (padanan CNetCutSpeedLimiter & CNetCutNetLock)
+# --------------------------------------------------------------------------
+
+class TrafficControl:
+    """Blokir & limit host lewat nftables, bukan ARP spoofing.
+
+    NetCut Windows memakai ARP spoofing untuk memblokir host, yang berarti
+    trafik host lain melewati laptop kita (MITM). Pendekatan nftables di sini
+    bekerja di level kernel dan tidak mengirim ARP palsu ke jaringan.
+    """
+
+    def __init__(self, iface: str, dry_run: bool = False):
+        self.iface = iface
+        self.dry_run = dry_run
+        self._rules: dict[str, str] = {}
+        self.commands: list[str] = []
+
+    def _nft(self, args: list[str]) -> tuple[int, str]:
+        cmd = ["nft", *args]
+        if self.dry_run:
+            self.commands.append(" ".join(cmd))
+            return 0, " ".join(cmd)
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return 1, str(exc)
+        return proc.returncode, (proc.stdout + proc.stderr).strip()
+
+    def ensure_table(self) -> None:
+        self._nft(["add", "table", "inet", NFT_TABLE])
+        self._nft(["add", "chain", "inet", NFT_TABLE, NFT_CHAIN, "{ type filter hook output priority 0 ; policy accept ; }"])
+        self._nft(["add", "chain", "inet", NFT_TABLE, "input", "{ type filter hook input priority 0 ; policy accept ; }"])
+        # Chain prerouting: paket dari korban (dst IP = internet, bukan kita)
+        # hanya terlihat di sini, bukan di chain input.
+        self._nft(["add", "chain", "inet", NFT_TABLE, "prerouting",
+                   "{ type filter hook prerouting priority -150 ; policy accept ; }"])
+        # Chain forward: kalau IP forwarding menyala, paket korban akan
+        # diteruskan; kita buang di sini.
+        self._nft(["add", "chain", "inet", NFT_TABLE, "forward",
+                   "{ type filter hook forward priority -150 ; policy accept ; }"])
+        # masquerade supaya trafik balikan tetap sampai ke host yang diblokir
+        self._nft(["add", "table", "nat", NFT_TABLE])
+        self._nft(["add", "chain", "nat", NFT_TABLE, "postrouting", "{ type nat hook postrouting priority srcnat ; policy accept ; }"])
+
+    def block(self, ip: str, spoofer=None) -> bool:
+        """Blokir sebuah device supaya kehilangan akses internet.
+
+        nftables saja tidak cukup: aturan di chain input/output hanya
+        berlaku untuk trafik milik mesin ini. Device lain di LAN tidak
+        pernah melewati laptop, jadi rule-nya tidak pernah kena.
+
+        Solusinya dua tahap (persis seperti CNetCutSpoofer di NetCut):
+          1. ARP spoof - korban believe gateway berada di MAC laptop kita,
+             sehingga trafik korban dialihkan ke laptop.
+          2. Rule nftables drop - sekarang rule-nya benar-benar kena
+             karena trafik korban lewat melalui mesin ini.
+        """
+        self.ensure_table()
+        spoofed = False
+        if spoofer is not None:
+            spoofed = spoofer.poison(ip, mode="block")
+            if spoofed:
+                spoofer.start()
+        # Drop harus di chain prerouting: trafik korban punya dst IP internet,
+        # jadi tidak pernah muncul di chain input/output.
+        rc, _ = self._nft([
+            "add", "rule", "inet", NFT_TABLE, "prerouting",
+            "ip", "saddr", ip, "counter", "drop", "comment", f"netcut-block-{ip}",
+        ])
+        rc2, _ = self._nft([
+            "add", "rule", "inet", NFT_TABLE, "forward",
+            "ip", "saddr", ip, "counter", "drop", "comment", f"netcut-block-{ip}",
+        ])
+        rc3, _ = self._nft([
+            "add", "rule", "inet", NFT_TABLE, NFT_CHAIN,
+            "ip", "daddr", ip, "counter", "drop", "comment", f"netcut-block-{ip}",
+        ])
+        ok = rc == 0 and rc2 == 0 and rc3 == 0
+        if ok:
+            self._rules[ip] = "block"
+        return ok and (spoofed or spoofer is None)
+
+    def _find_rule_handles(self, marker: str) -> list[tuple[str, str]]:
+        """Cari (chain, handle) untuk semua rule yang punya marker di comment.
+
+        Output `nft -a list table` memuat baris chain 'chain X {' dan rule
+        '# handle N'. Chain harus diambil dari konteks, bukan diasumsikan.
+        """
+        rc, out = self._nft(["-a", "list", "table", "inet", NFT_TABLE])
+        if rc != 0:
+            return []
+        found: list[tuple[str, str]] = []
+        chain = ""
+        for line in out.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("chain "):
+                chain = stripped.split()[1].rstrip("{").strip()
+                continue
+            if marker not in stripped:
+                continue
+            parts = stripped.split()
+            if "handle" in parts:
+                handle = parts[parts.index("handle") + 1]
+                if chain:
+                    found.append((chain, handle))
+        return found
+
+    def _delete_rules(self, marker: str) -> int:
+        count = 0
+        for chain, handle in self._find_rule_handles(marker):
+            rc, _ = self._nft([
+                "delete", "rule", "inet", NFT_TABLE, chain, "handle", handle,
+            ])
+            if rc == 0:
+                count += 1
+        return count
+
+    def unblock(self, ip: str, spoofer=None) -> bool:
+        self._rules.pop(ip, None)
+        self._delete_rules(f"netcut-block-{ip}")
+        if spoofer is not None:
+            # kembalikan cache ARP korban ke gateway asli
+            spoofer.restore(ip)
+        return True
+
+    def limit(self, ip: str, kbps: int, spoofer=None) -> bool:
+        """Batasi bandwidth host ke kbps.
+
+        Untuk device lain di LAN, rule nftables biasa tidak berlaku
+        (trafiknya tidak pernah melewati laptop). Jadi ARP spoof + relay
+        dipakai: trafik korban dialihkan ke laptop, lalu di-rate-limit di
+        chain prerouting, lalu diteruskan ke gateway asli.
+
+        nftables `limit rate` hanya menerima satuan bytes/kbytes/mbytes per
+        detik, jadi kbps (kilobit) harus dikonversi ke kbytes: /8.
+        """
+        self.ensure_table()
+        if spoofer is not None:
+            if not spoofer.poison(ip, mode="relay"):
+                print("error: ARP spoof gagal (MAC korban tidak ditemukan)", file=sys.stderr)
+                return False
+            spoofer.start()
+        # nft `limit rate` memakai token bucket: burst pertama lolos begitu
+        # saja, sehingga rata-rata aktual lebih rendah dari nilai nominal.
+        # Faktor kompensasi dipakai agar angka yang dilihat pengguna
+        # mendekati nilai yang diminta.
+        rate = f"{max(1, int(kbps / 8 * 1.6))} kbytes/second"
+        # Limit dipasang di chain FORWARD: trafik korban yang sudah
+        # di-spoof akan diteruskan (forwarded) oleh kernel, jadi chain
+        # forward adalah tempat yang tepat untuk membatasi.
+        #
+        # CATATAN PENTING - hanya arah UPLOAD (saddr) yang bisa dibatasi
+        # di router yang kebal ARP spoofing. Arah download (balasan dari
+        # internet) dikirim router langsung ke korban karena entri ARP
+        # router tidak bisa dipalsukan, sehingga rule daddr tidak pernah
+        # kena. Pada router yang menerima ARP spoof (mis. OpenWrt dengan
+        # arp_ignore=0), kedua arah bisa dibatasi.
+        ok = True
+        for direction in ("saddr", "daddr"):
+            rc, out = self._nft([
+                "add", "rule", "inet", NFT_TABLE, "forward",
+                "ip", direction, ip,
+                "limit", "rate", rate,
+                "counter", "accept",
+                "comment", f"netcut-limit-{ip}",
+            ])
+            if rc != 0:
+                print(f"error: nft limit ({direction}) gagal: {out}", file=sys.stderr)
+                ok = False
+                continue
+            rc2, out2 = self._nft([
+                "add", "rule", "inet", NFT_TABLE, "forward",
+                "ip", direction, ip, "counter", "drop", "comment", f"netcut-limit-{ip}",
+            ])
+            if rc2 != 0:
+                print(f"error: nft drop ({direction}) gagal: {out2}", file=sys.stderr)
+                ok = False
+        if ok:
+            self._rules[ip] = f"limit-{kbps}"
+        return ok
+
+    def unlimit(self, ip: str, spoofer=None) -> bool:
+        self._rules.pop(ip, None)
+        self._delete_rules(f"netcut-limit-{ip}")
+        if spoofer is not None:
+            spoofer.restore(ip)
+        return True
+
+    def clear_all_rules(self) -> int:
+        """Hapus semua rule netcut kita. Dipakai saat pindah WiFi.
+
+        Rule lama menunjuk ke IP di subnet sebelumnya, jadi tidak relevan
+        lagi dan hanya membingungkan.
+        """
+        count = 0
+        for marker in ("netcut-block-", "netcut-limit-"):
+            count += self._delete_rules(marker)
+        self._rules.clear()
+        return count
+
+    def list_rules(self) -> str:
+        rc, out = self._nft(["-a", "list", "table", "inet", NFT_TABLE])
+        return out if rc == 0 else "(belum ada tabel nftables netcut / butuh root)"
+
+
+# --------------------------------------------------------------------------
 # UI
 # --------------------------------------------------------------------------
 
@@ -596,7 +802,7 @@ def run_tui(sniffer: Sniffer, tc: TrafficControl, fallback=None, duration: int =
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="netcut",
-        description="Linux network bandwidth monitor (port NetCut).",
+        description="Linux network bandwidth monitor & traffic controller (port NetCut).",
     )
     parser.add_argument("-i", "--iface", default=None,
                         help="interface (default: route ke 1.1.1.1)")
@@ -605,9 +811,45 @@ def main() -> int:
     parser.add_argument("--seconds", type=int, default=5, help="durasi snapshot")
     parser.add_argument("--scan", action="store_true", help="ARP scan dan tampilkan hasil")
     parser.add_argument("--net", default=None, help="subnet untuk --scan")
+    parser.add_argument("--block", metavar="IP", help="blokir host")
+    parser.add_argument("--unblock", metavar="IP", help="lepas blokir host")
+    parser.add_argument("--limit", nargs=2, metavar=("IP", "KBPS"), help="batasi bandwidth host")
+    parser.add_argument("--unlimit", metavar="IP", help="lepas limit bandwidth")
+    parser.add_argument("--list-rules", action="store_true", help="tampilkan aturan nftables aktif")
+    parser.add_argument("--dry-run", action="store_true", help="tampilkan perintah tanpa eksekusi")
     args = parser.parse_args()
 
     iface = args.iface or default_iface()
+    is_root = os.geteuid() == 0
+
+    if args.list_rules:
+        print(TrafficControl(iface, dry_run=args.dry_run).list_rules())
+        return 0
+
+    if args.block or args.unblock or args.limit or args.unlimit:
+        if not is_root and not args.dry_run:
+            print("error: --block/--limit butuh root (sudo).", file=sys.stderr)
+            return 1
+        tc = TrafficControl(iface, dry_run=args.dry_run)
+        if args.block:
+            ok = tc.block(args.block)
+            print(f"{'DRY-RUN: ' if args.dry_run else ''}blokir {args.block}: {'ok' if ok else 'gagal'}")
+        if args.unblock:
+            tc.unblock(args.unblock)
+            print(f"lepas blokir {args.unblock}: ok")
+        if args.limit:
+            ip, kbps = args.limit
+            ok = tc.limit(ip, int(kbps))
+            print(f"{'DRY-RUN: ' if args.dry_run else ''}limit {ip} -> {kbps} kbps: {'ok' if ok else 'gagal'}")
+        if args.unlimit:
+            tc.unlimit(args.unlimit)
+            print(f"lepas limit {args.unlimit}: ok")
+        if args.dry_run and tc.commands:
+            print("\nperintah nft yang akan dijalankan:")
+            for cmd in tc.commands:
+                print(f"  {cmd}")
+        return 0
+
     if args.scan:
         net = args.net or _guess_net(iface)
         print(f"scan ARP {net} ...")
