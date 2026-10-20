@@ -62,6 +62,46 @@ NFT_CHAIN = "filter"
 
 
 # --------------------------------------------------------------------------
+# vendor lookup
+# --------------------------------------------------------------------------
+
+class VendorDB:
+    """MAC prefix -> vendor, dari hwdata oui.txt (format NetCut 'macdata')."""
+
+    def __init__(self, paths=None):
+        self.paths = paths or [
+            "/usr/share/hwdata/oui.txt",
+            "/usr/share/ieee-data/oui.txt",
+        ]
+        self._db: dict[str, str] = {}
+        self._loaded = False
+
+    def load(self) -> None:
+        if self._loaded:
+            return
+        for path in self.paths:
+            if not os.path.exists(path):
+                continue
+            with open(path, "r", errors="replace") as fh:
+                for line in fh:
+                    if "(hex)" in line:
+                        prefix, _, vendor = line.partition("(hex)")
+                        prefix = prefix.strip().replace("-", "")[:6].upper()
+                        vendor = vendor.replace(")", "", 1).strip()
+                        if len(prefix) == 6 and vendor:
+                            self._db.setdefault(prefix, vendor)
+            self._loaded = True
+            break
+
+    def lookup(self, mac: str) -> str:
+        self.load()
+        if not mac or mac.lower() in {"ff:ff:ff:ff:ff:ff", "00:00:00:00:00:00"}:
+            return "broadcast"
+        prefix = mac.replace(":", "").replace("-", "").upper()[:6]
+        return self._db.get(prefix, "unknown")
+
+
+# --------------------------------------------------------------------------
 # host table
 # --------------------------------------------------------------------------
 
