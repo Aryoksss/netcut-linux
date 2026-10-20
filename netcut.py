@@ -462,46 +462,6 @@ def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
 
 
 # --------------------------------------------------------------------------
-# discovery  (padanan CNetCutDiscover)
-# --------------------------------------------------------------------------
-
-def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
-    """Scan ARP pada subnet, return list (ip, mac)."""
-    try:
-        ipnet = __import__("ipaddress").ip_network(net, strict=False)
-    except ValueError:
-        return []
-    targets = [str(h) for h in ipnet.hosts()]
-    if len(targets) > 512:
-        targets = targets[:512]
-
-    answered: list[tuple[str, str]] = []
-    packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=targets[0] if targets else "")
-
-    def probe(ip: str) -> tuple[str, str] | None:
-        try:
-            ans, _ = srp(
-                Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip),
-                timeout=timeout,
-                verbose=0,
-            )
-        except Exception:
-            return None
-        for _, r in ans:
-            if r[ARP].psrc == ip:
-                return ip, r[ARP].hwsrc
-        return None
-
-    from concurrent.futures import ThreadPoolExecutor
-
-    with ThreadPoolExecutor(max_workers=64) as pool:
-        for result in pool.map(probe, targets):
-            if result:
-                answered.append(result)
-    return answered
-
-
-# --------------------------------------------------------------------------
 # traffic control  (padanan CNetCutSpeedLimiter & CNetCutNetLock)
 # --------------------------------------------------------------------------
 
@@ -804,45 +764,88 @@ def main() -> int:
         prog="netcut",
         description="Linux network bandwidth monitor & traffic controller (port NetCut).",
     )
-    parser.add_argument("-i", "--iface", default=None,
-                        help="interface (default: route ke 1.1.1.1)")
+    parser.add_argument("-i", "--iface", default=None, help="interface (default: route ke 1.1.1.1)")
     parser.add_argument("--once", action="store_true", help="snapshot sekali lalu keluar")
     parser.add_argument("--json", action="store_true", help="output JSON")
-    parser.add_argument("--seconds", type=int, default=5, help="durasi snapshot")
+    parser.add_argument("--seconds", type=int, default=5, help="durasi snapshot (default 5)")
     parser.add_argument("--scan", action="store_true", help="ARP scan dan tampilkan hasil")
-    parser.add_argument("--net", default=None, help="subnet untuk --scan")
+    parser.add_argument("--net", default=None, help="subnet untuk --scan, mis. 192.168.1.0/24")
     parser.add_argument("--block", metavar="IP", help="blokir host")
+    parser.add_argument("--cut", metavar="IP",
+                        help="cut koneksi host (mode NetCut: ARP spoof + drop)")
     parser.add_argument("--unblock", metavar="IP", help="lepas blokir host")
     parser.add_argument("--limit", nargs=2, metavar=("IP", "KBPS"), help="batasi bandwidth host")
     parser.add_argument("--unlimit", metavar="IP", help="lepas limit bandwidth")
     parser.add_argument("--list-rules", action="store_true", help="tampilkan aturan nftables aktif")
     parser.add_argument("--dry-run", action="store_true", help="tampilkan perintah tanpa eksekusi")
+    parser.add_argument("--web", action="store_true",
+                        help="jalankan web GUI di browser (padanan CNetCutWebServer)")
+    parser.add_argument("--web-port", type=int, default=8080, help="port web GUI (default 8080)")
+    parser.add_argument("--web-host", default="127.0.0.1",
+                        help="bind address web GUI (default 127.0.0.1, lokal saja)")
     args = parser.parse_args()
 
     iface = args.iface or default_iface()
     is_root = os.geteuid() == 0
 
+    if args.web:
+        if not is_root:
+            print("peringatan: tanpa root, web GUI hanya menampilkan mode fallback "
+                  "(total interface + daftar host, bukan data per-host).", file=sys.stderr)
+        try:
+            import webgui
+        except ImportError:
+            print("error: file webgui.py tidak ditemukan di direktori yang sama.", file=sys.stderr)
+            return 1
+        webgui.serve(iface=iface, port=args.web_port, host=args.web_host)
+        return 0
+
     if args.list_rules:
         print(TrafficControl(iface, dry_run=args.dry_run).list_rules())
         return 0
 
-    if args.block or args.unblock or args.limit or args.unlimit:
+    if args.block or args.unblock or args.limit or args.unlimit or args.cut:
         if not is_root and not args.dry_run:
-            print("error: --block/--limit butuh root (sudo).", file=sys.stderr)
+            print("error: --block/--cut/--limit butuh root (sudo).", file=sys.stderr)
             return 1
         tc = TrafficControl(iface, dry_run=args.dry_run)
+        spoofer = None
+        if not args.dry_run:
+            try:
+                import spoof as spoof_mod
+                spoofer = spoof_mod.ArpSpoofer(iface)
+            except ImportError:
+                print("peringatan: spoof.py tidak ditemukan, blokir hanya berlaku "
+                      "untuk trafik mesin ini.", file=sys.stderr)
         if args.block:
-            ok = tc.block(args.block)
+            ok = tc.block(args.block, spoofer=spoofer)
             print(f"{'DRY-RUN: ' if args.dry_run else ''}blokir {args.block}: {'ok' if ok else 'gagal'}")
+            if spoofer is not None and ok:
+                print("  ARP spoof aktif: korban believes gateway = laptop ini.")
+                print("  Keepalive daemon dijalankan; ctrl-c untuk mengembalikan ARP cache.")
+                _spoofer_daemon(spoofer, tc)
+                return 0
+        if args.cut:
+            ok = tc.block(args.cut, spoofer=spoofer)
+            print(f"{'DRY-RUN: ' if args.dry_run else ''}cut {args.cut}: {'ok' if ok else 'gagal'}")
+            if spoofer is not None and ok:
+                print("  ARP spoof aktif. ctrl-c untuk mengembalikan ARP cache.")
+                _spoofer_daemon(spoofer, tc)
+                return 0
         if args.unblock:
-            tc.unblock(args.unblock)
+            tc.unblock(args.unblock, spoofer=spoofer)
             print(f"lepas blokir {args.unblock}: ok")
         if args.limit:
             ip, kbps = args.limit
-            ok = tc.limit(ip, int(kbps))
+            ok = tc.limit(ip, int(kbps), spoofer=spoofer)
             print(f"{'DRY-RUN: ' if args.dry_run else ''}limit {ip} -> {kbps} kbps: {'ok' if ok else 'gagal'}")
+            if spoofer is not None and ok:
+                print("  ARP spoof + relay aktif: trafik korban diteruskan ke gateway,")
+                print("  tetapi di-rate-limit di laptop. Ctrl-C untuk mengembalikan.")
+                _spoofer_daemon(spoofer, tc)
+                return 0
         if args.unlimit:
-            tc.unlimit(args.unlimit)
+            tc.unlimit(args.unlimit, spoofer=spoofer)
             print(f"lepas limit {args.unlimit}: ok")
         if args.dry_run and tc.commands:
             print("\nperintah nft yang akan dijalankan:")
@@ -857,39 +860,223 @@ def main() -> int:
             print(f"  {ip:<16}{mac}")
         return 0
 
+    # mode monitor
     sniffer = Sniffer(iface)
+    fallback: InterfaceCounters | None = None
     try:
         sniffer.open()
     except PermissionError:
-        print("error: butuh root untuk AF_PACKET capture (sudo).", file=sys.stderr)
-        return 1
+        fallback = InterfaceCounters(iface)
+        print("peringatan: capture per-host butuh root (sudo). "
+              "Mode fallback: hanya total interface + daftar host dari ARP/neigh.",
+              file=sys.stderr)
     except OSError as exc:
         print(f"error: tidak bisa buka {iface}: {exc}", file=sys.stderr)
         return 1
 
-    deadline = time.time() + args.seconds
-    while time.time() < deadline:
-        sniffer.poll()
-        time.sleep(0.1)
-    sniffer.merge_neighbors()
-    sniffer.refresh_rates()
-    rows = sorted(sniffer.hosts.values(), key=lambda h: h.rx + h.tx, reverse=True)
-    if args.json:
-        print(json.dumps([
-            {"ip": h.ip, "mac": h.mac, "vendor": h.vendor,
-             "rx": h.rx, "tx": h.tx,
-             "rx_rate": round(h.rx_rate, 1), "tx_rate": round(h.tx_rate, 1),
-             "source": h.source}
-            for h in rows
-        ], indent=2))
-    else:
-        print(f"{'IP':<16}{'MAC':<18}{'RX':>11}{'TX':>11}{'TOTAL':>11}  VENDOR")
-        print("-" * 100)
-        for h in rows:
-            print(f"{h.ip:<16}{h.mac:<18}{fmt_rate(h.rx_rate):>11}"
-                  f"{fmt_rate(h.tx_rate):>11}{fmt_bytes(h.rx + h.tx):>11}  {h.vendor[:34]}")
-    sniffer.close()
+    tc = TrafficControl(iface)
+
+    if args.once or args.json:
+        deadline = time.time() + args.seconds
+        while time.time() < deadline:
+            if fallback is None:
+                sniffer.poll()
+            else:
+                fallback.refresh()
+            time.sleep(0.1)
+        sniffer.merge_neighbors()
+        sniffer.refresh_rates()
+        rows = sorted(sniffer.hosts.values(), key=lambda h: h.rx + h.tx, reverse=True)
+        if args.json:
+            out = [
+                {
+                    "ip": h.ip, "mac": h.mac, "vendor": h.vendor,
+                    "rx": h.rx, "tx": h.tx,
+                    "rx_rate": round(h.rx_rate, 1), "tx_rate": round(h.tx_rate, 1),
+                    "source": h.source,
+                }
+                for h in rows
+            ]
+            out.append({
+                "scope": "remote",
+                "note": "trafik ke/dari internet via gateway",
+                "rx": sniffer.remote_rx, "tx": sniffer.remote_tx,
+            })
+            if fallback is not None:
+                out.append({
+                    "interface": iface,
+                    "mode": "fallback-no-root",
+                    "rx_rate": round(fallback.rx_rate, 1),
+                    "tx_rate": round(fallback.tx_rate, 1),
+                })
+            print(json.dumps(out, indent=2))
+        else:
+            print(f"{'IP':<16}{'MAC':<18}{'RX':>11}{'TX':>11}{'TOTAL':>11}  VENDOR")
+            print("-" * 100)
+            for h in rows:
+                print(f"{h.ip:<16}{h.mac:<18}{fmt_rate(h.rx_rate):>11}"
+                      f"{fmt_rate(h.tx_rate):>11}{fmt_bytes(h.rx + h.tx):>11}  {h.vendor[:34]}")
+            if sniffer.remote_rx or sniffer.remote_tx:
+                print(f"{'(internet via gateway)':<16}{'':<18}"
+                      f"{fmt_bytes(sniffer.remote_rx):>11}{fmt_bytes(sniffer.remote_tx):>11}"
+                      f"{fmt_bytes(sniffer.remote_rx + sniffer.remote_tx):>11}")
+            if fallback is not None:
+                print()
+                print(f"  interface {iface} total: RX {fmt_rate(fallback.rx_rate)}  "
+                      f"TX {fmt_rate(fallback.tx_rate)}  (mode fallback tanpa root)")
+        sniffer.close()
+        return 0
+
+    try:
+        run_tui(sniffer, tc, fallback)
+    finally:
+        sniffer.close()
     return 0
+
+
+def _guess_net(iface: str) -> str:
+    try:
+        out = subprocess.run(["ip", "-4", "addr", "show", "dev", iface],
+                             capture_output=True, text=True, timeout=5).stdout
+        for line in out.splitlines():
+            line = line.strip()
+            if line.startswith("inet "):
+                addr = line.split()[1]
+                return str(__import__("ipaddress").ip_interface(addr).network)
+    except (OSError, subprocess.SubprocessError, IndexError):
+        pass
+    return "192.168.1.0/24"
+
+
+def _spoofer_daemon(spoofer, tc) -> None:
+    """Jaga spoofing tetap hidup & kembalikan ARP cache saat keluar.
+
+    Tanpa daemon ini, ARP cache korban akan expire dalam ~1 menit dan
+    koneksi korban pulih sendiri - persis perilaku yang NetCut Hindari
+    dengan service yang berjalan terus.
+    """
+    import signal
+
+    stop = {"flag": False}
+
+    def handler(signum, frame):
+        stop["flag"] = True
+
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGTERM, handler)
+
+    print("  (tekan ctrl-c untuk melepas blokir & mengembalikan ARP cache)")
+    try:
+        while not stop["flag"]:
+            time.sleep(1.0)
+    finally:
+        print("\nmengembalikan ARP cache korban...")
+        spoofer.stop()
+        for ip in list(tc._rules):
+            tc.unblock(ip, spoofer=spoofer)
+        print("selesai.")
+
+
+def _ipkey(ip: str) -> tuple:
+    try:
+        return tuple(int(p) for p in ip.split("."))
+    except ValueError:
+        return (0, 0, 0, 0)
+
+
+def _iface_network(iface: str):
+    """Ambil jaringan IPv4 yang dipakai interface (mis. 192.168.1.0/24)."""
+    import ipaddress
+    try:
+        out = subprocess.run(["ip", "-4", "addr", "show", "dev", iface],
+                             capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("inet "):
+            try:
+                return ipaddress.ip_interface(line.split()[1]).network
+            except ValueError:
+                return None
+    return None
+
+
+def current_network(iface: str | None = None) -> dict:
+    """Identitas jaringan aktif: gateway, IP lokal, subnet, SSID.
+
+    Dipakai untuk mendeteksi perpindahan WiFi (ganti SSID / hotspot).
+
+    iface: bila diberikan, gateway dicari dari route yang memakai interface
+    itu (bukan default route global), supaya hasilnya benar even ketika
+    ada beberapa interface (eth + wlan) aktif bersamaan.
+    """
+    import ipaddress
+    info = {"gateway": "", "ip": "", "net": "", "ssid": "", "iface": iface or ""}
+
+    # gateway: route default yang melewati interface target
+    try:
+        out = subprocess.run(["ip", "route", "show", "default"],
+                             capture_output=True, text=True, timeout=5).stdout
+        for line in out.splitlines():
+            parts = line.split()
+            dev = parts[parts.index("dev") + 1] if "dev" in parts else ""
+            gw = parts[parts.index("via") + 1] if "via" in parts else ""
+            if iface and dev != iface:
+                continue
+            if not info["gateway"] and gw:
+                info["gateway"] = gw
+            if not info["iface"]:
+                info["iface"] = dev
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+    if not info["iface"]:
+        info["iface"] = default_iface()
+    iface = info["iface"]
+
+    # IP & subnet dari interface
+    try:
+        out = subprocess.run(["ip", "-4", "addr", "show", "dev", iface],
+                             capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("inet ") and not info["ip"]:
+            try:
+                iface_obj = ipaddress.ip_interface(line.split()[1])
+                info["ip"] = str(iface_obj.ip)
+                info["net"] = str(iface_obj.network)
+            except ValueError:
+                pass
+
+    # SSID (tidak butuh root)
+    try:
+        out = subprocess.run(["iw", "dev", iface, "link"],
+                             capture_output=True, text=True, timeout=5).stdout
+        for line in out.splitlines():
+            line = line.strip()
+            if line.startswith("SSID:"):
+                info["ssid"] = line.split(":", 1)[1].strip()
+                break
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return info
+
+
+def _iface_addr(iface: str) -> str:
+    """Ambil alamat IPv4 utama interface (mis. 192.168.1.18)."""
+    try:
+        out = subprocess.run(["ip", "-4", "addr", "show", "dev", iface],
+                             capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("inet "):
+            return line.split()[1].split("/")[0]
+    return ""
 
 
 if __name__ == "__main__":
