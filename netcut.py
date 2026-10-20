@@ -422,6 +422,86 @@ class InterfaceCounters:
 
 
 # --------------------------------------------------------------------------
+# discovery  (padanan CNetCutDiscover)
+# --------------------------------------------------------------------------
+
+def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
+    """Scan ARP pada subnet, return list (ip, mac)."""
+    try:
+        ipnet = __import__("ipaddress").ip_network(net, strict=False)
+    except ValueError:
+        return []
+    targets = [str(h) for h in ipnet.hosts()]
+    if len(targets) > 512:
+        targets = targets[:512]
+
+    answered: list[tuple[str, str]] = []
+    packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=targets[0] if targets else "")
+
+    def probe(ip: str) -> tuple[str, str] | None:
+        try:
+            ans, _ = srp(
+                Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip),
+                timeout=timeout,
+                verbose=0,
+            )
+        except Exception:
+            return None
+        for _, r in ans:
+            if r[ARP].psrc == ip:
+                return ip, r[ARP].hwsrc
+        return None
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=64) as pool:
+        for result in pool.map(probe, targets):
+            if result:
+                answered.append(result)
+    return answered
+
+
+# --------------------------------------------------------------------------
+# discovery  (padanan CNetCutDiscover)
+# --------------------------------------------------------------------------
+
+def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
+    """Scan ARP pada subnet, return list (ip, mac)."""
+    try:
+        ipnet = __import__("ipaddress").ip_network(net, strict=False)
+    except ValueError:
+        return []
+    targets = [str(h) for h in ipnet.hosts()]
+    if len(targets) > 512:
+        targets = targets[:512]
+
+    answered: list[tuple[str, str]] = []
+    packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=targets[0] if targets else "")
+
+    def probe(ip: str) -> tuple[str, str] | None:
+        try:
+            ans, _ = srp(
+                Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip),
+                timeout=timeout,
+                verbose=0,
+            )
+        except Exception:
+            return None
+        for _, r in ans:
+            if r[ARP].psrc == ip:
+                return ip, r[ARP].hwsrc
+        return None
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=64) as pool:
+        for result in pool.map(probe, targets):
+            if result:
+                answered.append(result)
+    return answered
+
+
+# --------------------------------------------------------------------------
 # UI
 # --------------------------------------------------------------------------
 
@@ -523,9 +603,18 @@ def main() -> int:
     parser.add_argument("--once", action="store_true", help="snapshot sekali lalu keluar")
     parser.add_argument("--json", action="store_true", help="output JSON")
     parser.add_argument("--seconds", type=int, default=5, help="durasi snapshot")
+    parser.add_argument("--scan", action="store_true", help="ARP scan dan tampilkan hasil")
+    parser.add_argument("--net", default=None, help="subnet untuk --scan")
     args = parser.parse_args()
 
     iface = args.iface or default_iface()
+    if args.scan:
+        net = args.net or _guess_net(iface)
+        print(f"scan ARP {net} ...")
+        for ip, mac in sorted(arp_scan(net), key=lambda x: _ipkey(x[0])):
+            print(f"  {ip:<16}{mac}")
+        return 0
+
     sniffer = Sniffer(iface)
     try:
         sniffer.open()
@@ -540,20 +629,23 @@ def main() -> int:
     while time.time() < deadline:
         sniffer.poll()
         time.sleep(0.1)
+    sniffer.merge_neighbors()
     sniffer.refresh_rates()
     rows = sorted(sniffer.hosts.values(), key=lambda h: h.rx + h.tx, reverse=True)
     if args.json:
         print(json.dumps([
-            {"ip": h.ip, "mac": h.mac, "rx": h.rx, "tx": h.tx,
-             "rx_rate": round(h.rx_rate, 1), "tx_rate": round(h.tx_rate, 1)}
+            {"ip": h.ip, "mac": h.mac, "vendor": h.vendor,
+             "rx": h.rx, "tx": h.tx,
+             "rx_rate": round(h.rx_rate, 1), "tx_rate": round(h.tx_rate, 1),
+             "source": h.source}
             for h in rows
         ], indent=2))
     else:
-        print(f"{'IP':<16}{'MAC':<18}{'RX':>11}{'TX':>11}{'TOTAL':>11}")
-        print("-" * 78)
+        print(f"{'IP':<16}{'MAC':<18}{'RX':>11}{'TX':>11}{'TOTAL':>11}  VENDOR")
+        print("-" * 100)
         for h in rows:
             print(f"{h.ip:<16}{h.mac:<18}{fmt_rate(h.rx_rate):>11}"
-                  f"{fmt_rate(h.tx_rate):>11}{fmt_bytes(h.rx + h.tx):>11}")
+                  f"{fmt_rate(h.tx_rate):>11}{fmt_bytes(h.rx + h.tx):>11}  {h.vendor[:34]}")
     sniffer.close()
     return 0
 
