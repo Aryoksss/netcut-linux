@@ -1,24 +1,26 @@
 # netcut-linux
 
-Monitor bandwidth per-host & kontrol trafik untuk jaringan lokal di Linux.
+Per-host bandwidth monitoring & traffic control for your local network on Linux.
 
-Terinspirasi dari **NetCut** untuk Windows — interface dan perilakunya serupa,
-namun diimplementasikan ulang dengan tool Linux native.
+Inspired by **NetCut** for Windows — the interface and behaviour are similar,
+but it is reimplemented with native Linux tooling.
 
-![Dashboard netcut-linux](assets/dashboard.png)
+**English** · [Bahasa Indonesia](README.id.md)
 
-## Fitur
+![netcut-linux dashboard](assets/dashboard.png)
 
-- **Monitoring real-time** per host: IP, MAC, vendor, download, upload, total
-- **Blokir device** — memutus akses internet sebuah perangkat di jaringan
-- **Batasi bandwidth** per device (kbps)
-- **Lookup vendor** dari database OUI lokal
-- **Discovery host** via ARP scan + cache ARP kernel
-- **Web dashboard** dengan REST API JSON
-- **Aplikasi Linux native**: launcher, entry app menu, system tray
-- **Deteksi otomatis perpindahan WiFi** — scan ulang saat jaringan berganti
+## Features
 
-## Pemasangan
+- **Real-time monitoring** per host: IP, MAC, vendor, download, upload, total
+- **Block a device** — cut a device's internet access on the network
+- **Bandwidth limiting** per device (kbps)
+- **Vendor lookup** from the local OUI database
+- **Host discovery** via ARP scan + kernel ARP cache
+- **Web dashboard** with a JSON REST API
+- **Native Linux app**: launcher, app menu entry, system tray
+- **Automatic WiFi change detection** — rescan when the network changes
+
+## Installation
 
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
@@ -26,53 +28,54 @@ cd netcut-linux
 ./install.sh
 ```
 
-Launcher terpasang di `~/.local/bin/netcut` dan aplikasi muncul di app menu.
+The launcher is installed to `~/.local/bin/netcut` and the app appears in your
+application menu.
 
-Alternatif tanpa instalasi:
+Without installing:
 
 ```bash
-./netcut.py --web      # dashboard di http://127.0.0.1:8080
+./netcut.py --web      # dashboard at http://127.0.0.1:8080
 ```
 
-### Dependency
+### Dependencies
 
-| Paket | Debian/Ubuntu | Fedora |
+| Package | Debian/Ubuntu | Fedora |
 |---|---|---|
 | Scapy | `python3-scapy` | `python3-scapy` |
 | nftables | `nftables` | `nftables` |
 | OUI database | `hwdata` | `hwdata` |
 
-### Privilege
+### Privileges
 
-Blokir & limit device lain butuh `CAP_NET_RAW` (capture) dan `CAP_NET_ADMIN`
-(nftables). Launcher mengurusinya secara otomatis:
+Blocking and limiting other devices requires `CAP_NET_RAW` (capture) and
+`CAP_NET_ADMIN` (nftables). The launcher picks a privilege path automatically:
 
-1. **Punya `CAP_NET_RAW`** → jalan langsung
-2. **Bisa pakai docker** (user ada di grup `docker`) → server dijalankan di
-   container dengan `--cap-add=NET_RAW --cap-add=NET_ADMIN --network=host`
-3. **Else** → mode fallback: monitoring total interface saja, tanpa kontrol
+1. **Has `CAP_NET_RAW`** → runs directly
+2. **Docker available** (user is in the `docker` group) → server runs in a
+   container with `--cap-add=NET_RAW --cap-add=NET_ADMIN --network=host`
+3. **Otherwise** → fallback mode: whole-interface monitoring only, no control
 
-Mode yang aktif terlihat di header dashboard: `capture` (penuh) atau
-`fallback-no-root` (terbatas).
+The active mode is shown in the dashboard header: `capture` (full) or
+`fallback-no-root` (limited).
 
-## Pemakaian
+## Usage
 
 ### CLI
 
 ```bash
-netcut                          # buka web GUI + system tray
-netcut --tray                   # hanya system tray
-netcut --status                 # cek server jalan/tidak
-netcut --stop                   # hentikan server
+netcut                          # open web GUI + system tray
+netcut --tray                   # system tray only
+netcut --status                 # check whether the server is running
+netcut --stop                   # stop the server
 
-sudo ./netcut.py --once         # snapshot sekali
-sudo ./netcut.py --json         # output JSON
+sudo ./netcut.py --once         # single snapshot
+sudo ./netcut.py --json         # JSON output
 sudo ./netcut.py --scan         # ARP scan
-sudo ./netcut.py --block 192.168.1.50      # blokir device
-sudo ./netcut.py --cut 192.168.1.50        # cut koneksi device
-sudo ./netcut.py --limit 192.168.1.50 512  # batasi 512 kbps
-sudo ./netcut.py --unblock 192.168.1.50    # lepas blokir
-sudo ./netcut.py --list-rules               # aturan nftables aktif
+sudo ./netcut.py --block 192.168.1.50      # block a device
+sudo ./netcut.py --cut 192.168.1.50        # cut a device's connection
+sudo ./netcut.py --limit 192.168.1.50 512  # limit to 512 kbps
+sudo ./netcut.py --unblock 192.168.1.50    # remove block
+sudo ./netcut.py --list-rules               # active nftables rules
 ```
 
 ### Web dashboard
@@ -81,45 +84,45 @@ sudo ./netcut.py --list-rules               # aturan nftables aktif
 sudo ./netcut.py --web --web-port 8080
 ```
 
-- Tabel live per-host: IP, MAC, vendor, download, upload, total
-- Sortir per kolom (klik header)
-- Tombol **Blokir** / **Buka** dan **Limit** / **Buka limit** per baris
-- Kartu ringkasan: total download, upload, host aktif, paket, trafik total
-- **Scan ARP** (background, tidak membekukan UI)
-- **Aturan nft** untuk melihat rule yang aktif
-- Ganti interface langsung dari header
+- Live per-host table: IP, MAC, vendor, download, upload, total
+- Sort by column (click a header)
+- **Block** / **Unblock** and **Limit** / **Remove limit** buttons per row
+- Summary cards: total download, upload, active hosts, packets, total traffic
+- **ARP scan** (background, does not freeze the UI)
+- **nft rules** to inspect the active ruleset
+- Switch interface directly from the header
 
 ### REST API
 
-| Endpoint | Method | Body | Fungsi |
+| Endpoint | Method | Body | Purpose |
 |---|---|---|---|
-| `/api/hosts` | GET | — | snapshot host + rate |
-| `/api/rules` | GET | — | daftar aturan nftables aktif |
-| `/api/block` | POST | `{"ip":"..."}` | blokir host |
-| `/api/unblock` | POST | `{"ip":"..."}` | lepas blokir |
-| `/api/limit` | POST | `{"ip":"...","kbps":512}` | batasi bandwidth |
-| `/api/unlimit` | POST | `{"ip":"..."}` | lepas limit |
+| `/api/hosts` | GET | — | host snapshot + rates |
+| `/api/rules` | GET | — | active nftables rules |
+| `/api/block` | POST | `{"ip":"..."}` | block a host |
+| `/api/unblock` | POST | `{"ip":"..."}` | unblock a host |
+| `/api/limit` | POST | `{"ip":"...","kbps":512}` | limit bandwidth |
+| `/api/unlimit` | POST | `{"ip":"..."}` | remove limit |
 | `/api/scan` | POST | `{"net":"..."}` | ARP scan (background) |
-| `/api/iface` | POST | `{"iface":"..."}` | ganti interface |
+| `/api/iface` | POST | `{"iface":"..."}` | switch interface |
 
 ### System tray
 
-Ikon di system tray menampilkan tooltip live: `netcut - <SSID>: <jumlah> host`.
-Menu klik-kanan:
+The tray icon shows a live tooltip: `netcut - <SSID>: <host count>`.
+Right-click menu:
 
-- **Buka Dashboard** — buka web GUI di browser
-- **Scan ARP** — scan subnet aktif
-- **Aturan nftables** — tampilkan rule aktif
-- **Lepas Semua Blokir** — cabut blokir & limit
-- **Keluar** — hentikan
+- **Open Dashboard** — open the web GUI in your browser
+- **ARP Scan** — scan the active subnet
+- **nftables Rules** — show the active ruleset
+- **Remove All Blocks** — clear blocks & limits
+- **Quit** — stop
 
-Tray memakai `AppIndicator3` (protokol StatusNotifier) — di Wayland tray hanya
-bisa lewat protokol itu. Notifikasi desktop muncul saat jaringan berubah atau
-ada host diblokir.
+The tray uses `AppIndicator3` (StatusNotifier protocol) — on Wayland that is
+the only way to get a tray icon. Desktop notifications appear when the network
+changes or a host is blocked.
 
-### Keybind niri
+### niri keybind
 
-Tambahkan ke `~/.config/niri/config.kdl`:
+Add to `~/.config/niri/config.kdl`:
 
 ```
 Mod+Shift+N hotkey-overlay-title="NetCut" {
@@ -127,75 +130,78 @@ Mod+Shift+N hotkey-overlay-title="NetCut" {
 }
 ```
 
-## Cara kerja
+## How it works
 
-![Diagram cara kerja](assets/architecture.png)
+![How it works](assets/architecture.png)
 
-Agar aturan di laptop bisa menyentuh trafik device lain, trafiknya perlu
-melewati laptop lebih dulu. Hal itu dilakukan lewat ARP spoofing: korban diberi
-tahu bahwa gateway berada di MAC laptop, sehingga trafiknya dialihkan ke
-laptop — lalu baru bisa di-drop atau di-rate-limit di sini.
+For rules on your laptop to affect another device's traffic, that traffic has
+to pass through the laptop first. That is achieved with ARP spoofing: the
+victim is told the gateway lives at the laptop's MAC, so its traffic is
+redirected to the laptop — and only then can it be dropped or rate-limited
+here.
 
-- Mode **Blokir** → paket masuk ke laptop lalu dibuang
-- Mode **Limit** → paket masuk ke laptop, diteruskan ke gateway, tapi
-  dibatasi rate-nya
+- **Block** mode → packets reach the laptop and are dropped
+- **Limit** mode → packets reach the laptop, are forwarded to the gateway,
+  but rate-limited
 
-Saat sebuah device diblokir, barisnya ditandai merah dengan badge status:
+When a device is blocked, its row is highlighted in red with status badges:
 
-![Device diblokir](assets/blocked.png)
+![Device blocked](assets/blocked.png)
 
-## Batasan yang diketahui
+## Known limitations
 
-- **Access point WiFi membuang frame dengan source MAC asing.** Karena itu ARP
-  reply dari MAC gateway tidak pernah sampai ke korban, dan frame relay harus
-  memakai MAC laptop sendiri. Efeknya: saat blokir dilepas, cache ARP korban
-  perlu expired sendiri sebelum kembali normal.
+- **WiFi access points drop frames with a foreign source MAC.** Because of
+  that, an ARP reply from the gateway's MAC never reaches the victim, and
+  relay frames must use the laptop's own MAC. As a result, when a block is
+  removed the victim's ARP cache has to expire on its own before things return
+  to normal.
 
-- **Router dengan proteksi ARP spoofing** (mis. beberapa router ISP) menolak
-  spoofing ke sisi router. Akibatnya balasan download dari internet dikirim
-  langsung ke device, melewati laptop — sehingga **limit hanya berlaku untuk
-  arah upload** di router seperti itu. Tool mendeteksi hal ini otomatis dan
-  menampilkan badge peringatan. Untuk membatasi total, gunakan **Blokir**.
+- **Routers with ARP spoofing protection** (e.g. some ISP routers) reject
+  spoofing towards the router side. Download replies from the internet are then
+  sent straight to the device, bypassing the laptop — so **limiting only
+  applies to the upload direction** on such routers. The tool detects this
+  automatically and shows a warning badge. To cap total traffic, use **Block**.
 
-- **Limit memakai token bucket**, jadi ada burst di awal. Nilai rata-rata
-  aktual sedikit di bawah nominal.
+- **Limiting uses a token bucket**, so there is a burst at the start. The
+  actual average ends up slightly below the nominal value.
 
-- Aturan nftables berlaku untuk trafik **milik mesin ini**. Untuk membatasi
-  perangkat lain secara permanen, pasang aturan di router.
+- nftables rules apply to **this machine's own traffic**. To permanently
+  constrain other devices, put rules on the router.
 
-## Ganti WiFi otomatis
+## Automatic WiFi switching
 
-Tool memantau perpindahan jaringan setiap 3 detik. Begitu kamu pindah WiFi atau
-ganti hotspot, tool otomatis mengembalikan ARP cache korban, menghapus rule
-lama, membuang daftar host dari subnet sebelumnya, dan menjalankan scan ARP
-subnet baru.
+The tool watches for network changes every 3 seconds. As soon as you switch
+WiFi or change hotspot, it restores the victims' ARP caches, removes old
+rules, drops the host list from the previous subnet, and runs an ARP scan on
+the new subnet.
 
-## Test
-
-```bash
-python3 test_parser.py     # 9 unit test, tanpa root
-sudo python3 test_suite.py # 28 test end-to-end di jaringan virtual terisolasi
-```
-
-Test end-to-end memakai `veth` + network namespace sehingga tidak menyentuh
-jaringan host, dan otomatis di-skip bila `CAP_NET_ADMIN` tidak tersedia.
-
-## Regenerasi screenshot
-
-Gambar di README dibuat dari HTML dashboard asli dengan data demo sintetis,
-jadi tidak memuat SSID atau MAC jaringan siapa pun:
+## Tests
 
 ```bash
-python3 tools/make_screenshots.py   # butuh firefox + Pillow
+python3 test_parser.py     # 9 unit tests, no root required
+sudo python3 test_suite.py # 28 end-to-end tests on an isolated virtual network
 ```
 
-## Kontribusi
+The end-to-end tests use `veth` + network namespaces so they never touch the
+host network, and they are skipped automatically when `CAP_NET_ADMIN` is not
+available.
 
-Lihat [CONTRIBUTING.md](CONTRIBUTING.md).
+## Regenerating screenshots
 
-## Lisensi
+The images in this README are rendered from the real dashboard HTML using
+synthetic demo data, so they contain no one's SSID or MAC addresses:
 
-MIT — lihat [LICENSE](LICENSE).
+```bash
+python3 tools/make_screenshots.py   # requires firefox + Pillow
+```
 
-> ARP spoofing adalah teknik MITM yang bisa mengarah ke penyalahgunaan.
-> Gunakan hanya untuk perangkat milik sendiri di jaringan sendiri.
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+> ARP spoofing is a MITM technique that can be abused.
+> Use it only on devices you own, on your own network.
