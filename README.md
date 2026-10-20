@@ -3,9 +3,9 @@
 Monitor bandwidth per-host & kontrol trafik untuk jaringan lokal di Linux.
 
 Terinspirasi dari **NetCut** untuk Windows — interface dan perilakunya serupa,
-namu diimplementasikan ulang dengan tool Linux native.
+namun diimplementasikan ulang dengan tool Linux native.
 
-![dashboard](out/app-dashboard.png)
+![Dashboard netcut-linux](assets/dashboard.png)
 
 ## Fitur
 
@@ -129,10 +129,7 @@ Mod+Shift+N hotkey-overlay-title="NetCut" {
 
 ## Cara kerja
 
-```
-sebelum                          sesudah
-HP ──(gateway MAC)──> router    HP ──(MAC laptop)──> laptop ──> router
-```
+![Diagram cara kerja](assets/architecture.png)
 
 Agar aturan di laptop bisa menyentuh trafik device lain, trafiknya perlu
 melewati laptop lebih dulu. Hal itu dilakukan lewat ARP spoofing: korban diberi
@@ -142,6 +139,10 @@ laptop — lalu baru bisa di-drop atau di-rate-limit di sini.
 - Mode **Blokir** → paket masuk ke laptop lalu dibuang
 - Mode **Limit** → paket masuk ke laptop, diteruskan ke gateway, tapi
   dibatasi rate-nya
+
+Saat sebuah device diblokir, barisnya ditandai merah dengan badge status:
+
+![Device diblokir](assets/blocked.png)
 
 ## Batasan yang diketahui
 
@@ -178,6 +179,15 @@ sudo python3 test_suite.py # 28 test end-to-end di jaringan virtual terisolasi
 
 Test end-to-end memakai `veth` + network namespace sehingga tidak menyentuh
 jaringan host, dan otomatis di-skip bila `CAP_NET_ADMIN` tidak tersedia.
+
+## Regenerasi screenshot
+
+Gambar di README dibuat dari HTML dashboard asli dengan data demo sintetis,
+jadi tidak memuat SSID atau MAC jaringan siapa pun:
+
+```bash
+python3 tools/make_screenshots.py   # butuh firefox + Pillow
+```
 
 ## Kontribusi
 
