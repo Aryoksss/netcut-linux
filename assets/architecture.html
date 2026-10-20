@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>netcut-linux — cara kerja</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: #e2e8f0;
+    }
+
+    .container { max-width: 1240px; margin: 0 auto; }
+
+    .header { margin-bottom: 1.75rem; }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .pulse-dot {
+      width: 12px;
+      height: 12px;
+      background: #22d3ee;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+      flex: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      font-size: 0.8125rem;
+      margin-left: 1.75rem;
+    }
+
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+      overflow-x: auto;
+    }
+
+    svg { width: 100%; min-width: 980px; display: block; }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1.75rem;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.blue { background: #60a5fa; }
+
+    .card h3 { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.02em; }
+
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; line-height: 1.7; }
+    .card li { margin-bottom: 0.25rem; }
+    .card code { color: #cbd5e1; }
+
+    .footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: #475569;
+      font-size: 0.6875rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>netcut-linux — cara kerja</h1>
+      </div>
+      <p class="subtitle">Monitor bandwidth per-host &amp; kontrol trafik perangkat di jaringan lokal, dari satu laptop Linux.</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1180 780" role="img" aria-label="Diagram arsitektur netcut-linux: perangkat LAN, laptop Linux, dan router gateway">
+        <defs>
+          <marker id="arw-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+          </marker>
+          <marker id="arw-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee"/>
+          </marker>
+          <marker id="arw-blue" markerWidth="9" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 9 3, 0 6" fill="#60a5fa"/>
+          </marker>
+          <marker id="arw-rose" markerWidth="9" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 9 3, 0 6" fill="#fb7185"/>
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="1180" height="780" fill="url(#grid)"/>
+
+        <!-- ============ BATAS LAPIS ============ -->
+
+        <!-- LAPIS 1 — perangkat di LAN -->
+        <rect x="40" y="56" width="780" height="140" rx="10" fill="rgba(148, 163, 184, 0.04)"
+              stroke="#475569" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="58" y="78" fill="#94a3b8" font-size="9" font-weight="600" letter-spacing="1.2">LAPIS 1 — PERANGKAT DI LAN</text>
+        <text x="802" y="78" fill="#64748b" font-size="8" text-anchor="end">semua terhubung via WiFi</text>
+
+        <!-- LAPIS 2 — laptop linux -->
+        <rect x="40" y="300" width="850" height="370" rx="12" fill="rgba(8, 51, 68, 0.16)"
+              stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="870" y="322" text-anchor="end" fill="#22d3ee" font-size="9" font-weight="600" letter-spacing="1.2">LAPIS 2 — LAPTOP LINUX · netcut-linux berjalan di sini</text>
+
+        <!-- LAPIS 3 — router -->
+        <rect x="906" y="300" width="238" height="170" rx="12" fill="rgba(251, 191, 36, 0.05)"
+              stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="922" y="320" fill="#fbbf24" font-size="9" font-weight="600" letter-spacing="1.2">LAPIS 3 — ROUTER</text>
+
+        <!-- ============ PANAH (digambar lebih dulu, di belakang kotak) ============ -->
+
+        <!-- trafik normal: perangkat -> router -->
+        <path d="M 736 140 H 1070 V 324" fill="none" stroke="#94a3b8" stroke-width="1.5"
+              marker-end="url(#arw-slate)"/>
+        <text x="1080" y="238" fill="#94a3b8" font-size="8.5">trafik normal</text>
+
+        <!-- ARP spoof -> perangkat target -->
+        <path d="M 154 350 V 268 H 278 Q 290 268 290 256 V 182" fill="none" stroke="#fb7185" stroke-width="1.3"
+              stroke-dasharray="4,3" marker-end="url(#arw-rose)"/>
+        <text x="168" y="262" fill="#fb7185" font-size="7.5">ARP reply palsu</text>
+
+        <!-- setelah ARP spoof: perangkat -> sniffer -->
+        <path d="M 340 178 V 250 H 440 V 346" fill="none" stroke="#22d3ee" stroke-width="1.5"
+              marker-end="url(#arw-cyan)"/>
+        <text x="352" y="242" fill="#22d3ee" font-size="8.5">setelah ARP spoof</text>
+
+        <!-- jalur paket di dalam laptop: sniffer -> nftables -> relay -->
+        <line x1="468" y1="394" x2="502" y2="394" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arw-cyan)"/>
+        <line x1="690" y1="394" x2="724" y2="394" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arw-cyan)"/>
+
+        <!-- relay -> router -->
+        <line x1="872" y1="392" x2="922" y2="392" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arw-cyan)"/>
+
+        <!-- kontrol GUI -> nftables -->
+        <line x1="620" y1="538" x2="620" y2="442" stroke="#60a5fa" stroke-width="1.4"
+              stroke-dasharray="4,3" marker-end="url(#arw-blue)"/>
+        <text x="628" y="496" fill="#7dd3fc" font-size="8.5">kontrol</text>
+
+        <!-- kontrol GUI -> ARP spoof -->
+        <path d="M 284 585 H 170 Q 154 585 154 569 V 442" fill="none" stroke="#60a5fa" stroke-width="1.4"
+              stroke-dasharray="4,3" marker-end="url(#arw-blue)"/>
+        <text x="164" y="512" fill="#7dd3fc" font-size="8.5">kontrol</text>
+
+        <!-- ============ KOMPONEN ============ -->
+
+        <!-- perangkat -->
+        <g>
+          <rect x="64" y="104" width="150" height="72" rx="6" fill="#0f172a"/>
+          <rect x="64" y="104" width="150" height="72" rx="6" fill="rgba(30, 41, 59, 0.55)" stroke="#94a3b8" stroke-width="1.5"/>
+          <text x="139" y="132" fill="#e2e8f0" font-size="12" font-weight="600" text-anchor="middle">HP</text>
+          <text x="139" y="152" fill="#94a3b8" font-size="8.5" text-anchor="middle">WiFi</text>
+        </g>
+
+        <g>
+          <rect x="238" y="104" width="170" height="72" rx="6" fill="#0f172a"/>
+          <rect x="238" y="104" width="170" height="72" rx="6" fill="rgba(30, 41, 59, 0.55)" stroke="#94a3b8" stroke-width="1.5"/>
+          <text x="323" y="132" fill="#e2e8f0" font-size="12" font-weight="600" text-anchor="middle">Laptop lain</text>
+          <text x="323" y="152" fill="#94a3b8" font-size="8.5" text-anchor="middle">WiFi</text>
+        </g>
+
+        <g>
+          <rect x="432" y="104" width="140" height="72" rx="6" fill="#0f172a"/>
+          <rect x="432" y="104" width="140" height="72" rx="6" fill="rgba(30, 41, 59, 0.55)" stroke="#94a3b8" stroke-width="1.5"/>
+          <text x="502" y="132" fill="#e2e8f0" font-size="12" font-weight="600" text-anchor="middle">Smart TV</text>
+          <text x="502" y="152" fill="#94a3b8" font-size="8.5" text-anchor="middle">WiFi</text>
+        </g>
+
+        <g>
+          <rect x="596" y="104" width="140" height="72" rx="6" fill="#0f172a"/>
+          <rect x="596" y="104" width="140" height="72" rx="6" fill="rgba(30, 41, 59, 0.55)" stroke="#94a3b8" stroke-width="1.5"/>
+          <text x="666" y="132" fill="#e2e8f0" font-size="12" font-weight="600" text-anchor="middle">dst.</text>
+          <text x="666" y="152" fill="#94a3b8" font-size="8.5" text-anchor="middle">WiFi</text>
+        </g>
+
+        <!-- ARP spoof -->
+        <g>
+          <rect x="64" y="352" width="180" height="84" rx="6" fill="#0f172a"/>
+          <rect x="64" y="352" width="180" height="84" rx="6" fill="rgba(136, 19, 55, 0.35)" stroke="#fb7185" stroke-width="1.5"/>
+          <text x="154" y="378" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle">ARP spoof</text>
+          <text x="154" y="398" fill="#94a3b8" font-size="8.5" text-anchor="middle">arahkan trafik target</text>
+          <text x="154" y="412" fill="#94a3b8" font-size="8.5" text-anchor="middle">ke laptop ini</text>
+        </g>
+
+        <!-- Sniffer -->
+        <g>
+          <rect x="286" y="352" width="180" height="84" rx="6" fill="#0f172a"/>
+          <rect x="286" y="352" width="180" height="84" rx="6" fill="rgba(8, 51, 68, 0.45)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="376" y="378" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle">Sniffer</text>
+          <text x="376" y="398" fill="#94a3b8" font-size="8.5" text-anchor="middle">raw AF_PACKET capture</text>
+          <text x="376" y="412" fill="#94a3b8" font-size="8.5" text-anchor="middle">hitung byte per host</text>
+        </g>
+
+        <!-- nftables -->
+        <g>
+          <rect x="508" y="352" width="180" height="84" rx="6" fill="#0f172a"/>
+          <rect x="508" y="352" width="180" height="84" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+          <text x="598" y="378" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle">nftables</text>
+          <text x="598" y="398" fill="#94a3b8" font-size="8.5" text-anchor="middle">drop / rate-limit</text>
+          <text x="598" y="412" fill="#94a3b8" font-size="8.5" text-anchor="middle">per alamat IP</text>
+        </g>
+
+        <!-- relay -->
+        <g>
+          <rect x="730" y="352" width="140" height="84" rx="6" fill="#0f172a"/>
+          <rect x="730" y="352" width="140" height="84" rx="6" fill="rgba(76, 29, 149, 0.35)" stroke="#a78bfa" stroke-width="1.5"/>
+          <text x="800" y="378" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle">relay</text>
+          <text x="800" y="398" fill="#94a3b8" font-size="8.5" text-anchor="middle">teruskan paket</text>
+          <text x="800" y="412" fill="#94a3b8" font-size="8.5" text-anchor="middle">ke gateway</text>
+        </g>
+
+        <!-- Web GUI + tray -->
+        <g>
+          <rect x="286" y="540" width="402" height="86" rx="6" fill="#0f172a"/>
+          <rect x="286" y="540" width="402" height="86" rx="6" fill="rgba(8, 51, 68, 0.45)" stroke="#60a5fa" stroke-width="1.5"/>
+          <text x="487" y="568" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle">Web GUI + tray</text>
+          <text x="487" y="588" fill="#94a3b8" font-size="8.5" text-anchor="middle">dashboard &amp; kontrol</text>
+          <text x="487" y="606" fill="#60a5fa" font-size="8" text-anchor="middle">http://127.0.0.1:8080 · REST API JSON</text>
+        </g>
+
+        <!-- Router -->
+        <g>
+          <rect x="930" y="330" width="190" height="120" rx="8" fill="#0f172a"/>
+          <rect x="930" y="330" width="190" height="120" rx="8" fill="rgba(120, 53, 15, 0.28)" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="1025" y="378" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle">Router</text>
+          <text x="1025" y="398" fill="#94a3b8" font-size="9" text-anchor="middle">gateway ke internet</text>
+          <text x="1025" y="418" fill="#fbbf24" font-size="8" text-anchor="middle">NAT · DHCP · WiFi AP</text>
+        </g>
+
+        <!-- ============ LEGENDA ============ -->
+
+        <text x="930" y="492" fill="#e2e8f0" font-size="9" font-weight="600" letter-spacing="1.2">LEGENDA</text>
+
+        <line x1="930" y1="510" x2="952" y2="510" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="960" y="513" fill="#94a3b8" font-size="8.5">trafik normal</text>
+
+        <line x1="930" y1="530" x2="952" y2="530" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="960" y="533" fill="#94a3b8" font-size="8.5">jalur setelah spoof</text>
+
+        <line x1="930" y1="550" x2="952" y2="550" stroke="#fb7185" stroke-width="1.3" stroke-dasharray="4,3"/>
+        <text x="960" y="553" fill="#94a3b8" font-size="8.5">ARP reply palsu</text>
+
+        <line x1="930" y1="570" x2="952" y2="570" stroke="#60a5fa" stroke-width="1.4" stroke-dasharray="4,3"/>
+        <text x="960" y="573" fill="#94a3b8" font-size="8.5">kontrol dari GUI</text>
+
+        <!-- ============ CATATAN ============ -->
+
+        <rect x="280" y="696" width="620" height="58" rx="8" fill="rgba(8, 51, 68, 0.28)"
+              stroke="#60a5fa" stroke-width="1" stroke-dasharray="4,4"/>
+        <rect x="298" y="715" width="66" height="20" rx="4" fill="none" stroke="#60a5fa" stroke-width="1"/>
+        <text x="331" y="729" fill="#60a5fa" font-size="7.5" font-weight="600" text-anchor="middle" letter-spacing="1">CATATAN</text>
+        <text x="380" y="729" fill="#cbd5e1" font-size="10.5">
+          Blokir = paket dibuang.  Limit = paket diteruskan dengan rate dibatasi.
+        </text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>Alur paket</h3>
+        </div>
+        <ul>
+          <li>• Perangkat → router: jalur normal</li>
+          <li>• Setelah ARP spoof: perangkat → laptop</li>
+          <li>• Sniffer hitung byte → nftables → relay</li>
+          <li>• Relay teruskan ke gateway</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>Mode operasi</h3>
+        </div>
+        <ul>
+          <li>• <code>capture</code> — monitor + kontrol penuh</li>
+          <li>• <code>fallback-no-root</code> — total per interface</li>
+          <li>• Mode aktif tampil di header dashboard</li>
+          <li>• Scan ulang otomatis saat pindah WiFi</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot blue"></div>
+          <h3>Prasyarat</h3>
+        </div>
+        <ul>
+          <li>• <code>CAP_NET_RAW</code> — capture paket</li>
+          <li>• <code>CAP_NET_ADMIN</code> — aturan nftables</li>
+          <li>• Alternatif: container docker + <code>--network=host</code></li>
+          <li>• Dependency: scapy, nftables, hwdata</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">netcut-linux · diagram arsitektur · dokumentasi proyek</p>
+  </div>
+</body>
+</html>

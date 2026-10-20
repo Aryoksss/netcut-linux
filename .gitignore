@@ -12,6 +12,7 @@ venv/
 out/
 *.png
 !assets/*.png
+!docs/*.png
 
 # hasil build
 netcut-launcher
