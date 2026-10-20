@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+"""netcut-app - launcher GUI + system tray untuk netcut-linux.
+
+Fitur:
+  - Jalankan web GUI dan buka browser
+  - System tray icon: klik untuk buka dashboard, menu untuk aksi cepat
+  - Notifikasi desktop saat jaringan berubah / host diblokir
+  - Graceful shutdown (restore ARP cache korban)
+
+Dipakai oleh netcut.desktop dan tray.sh.
+"""
+from __future__ import annotations
+
+import json
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+NETCUT_PY = os.path.join(APP_DIR, "netcut.py")
+PID_FILE = os.path.expanduser("~/.cache/netcut/netcut.pid")
+PORT = int(os.environ.get("NETCUT_PORT", "8080"))
+BASE = f"http://127.0.0.1:{PORT}"
+
+
+def log(msg: str) -> None:
+    print(f"[netcut-app] {msg}", flush=True)
+
+
+# ---------------------------------------------------------------- server
+class Server:
+    """Menjalankan netcut.py --web sebagai proses anak.
+
+    Capture per-host butuh CAP_NET_RAW. Tanpa itu tool hanya bisa
+    menampilkan mode fallback (total interface + daftar host, tanpa
+    kontrol blokir/limit).
+
+    Karena user umumnya ada di grup `docker`, server dijalankan di dalam
+    container dengan --cap-add=NET_RAW --cap-add=NET_ADMIN bila
+    memungkinkan. Dengan begitu seluruh fitur (blokir, limit, ARP spoof)
+    bekerja tanpa perlu sudo, dan container berbagi network namespace
+    dengan host sehingga aturannya nftables langsung berlaku di host.
+    """
+
+    IMAGE = "docker.io/library/fedora:44"
+    CONTAINER = "netcut-app"
+
+    def __init__(self):
+        self.proc: subprocess.Popen | None = None
+        self.container = False
+
+    # -- kapabilitas ---------------------------------------------------
+    @staticmethod
+    def has_capture_privs() -> bool:
+        """Cek apakah proses ini punya CAP_NET_RAW."""
+        if os.geteuid() == 0:
+            return True
+        try:
+            with open("/proc/self/status") as fh:
+                for line in fh:
+                    if line.startswith("CapEff:"):
+                        caps = int(line.split()[1], 16)
+                        return bool(caps & (1 << 13))  # CAP_NET_RAW
+        except OSError:
+            pass
+        return False
+
+    @staticmethod
+    def docker_usable() -> bool:
+        try:
+            p = subprocess.run(["docker", "info", "--format", "{{.ServerVersion}}"],
+                               capture_output=True, text=True, timeout=10)
+            return p.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    # -- start ----------------------------------------------------------
+    def start(self) -> bool:
+        if self.is_running():
+            return True
+        os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+
+        if self.has_capture_privs():
+            ok = self._start_native()
+            if ok:
+                return True
+        if self.docker_usable():
+            log("menjalankan via docker (privilege penuh, tanpa sudo)")
+            if self._start_docker():
+                return True
+        log("menjalankan natively (mode fallback: tanpa kontrol blokir/limit)")
+        return self._start_native()
+
+    def _start_native(self) -> bool:
+        cmd = [sys.executable, NETCUT_PY, "--web", "--web-port", str(PORT)]
+        log(f"menjalankan: {' '.join(cmd)}")
+        self.proc = subprocess.Popen(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        self._save_state({"mode": "native", "pid": self.proc.pid})
+        return self.wait_ready()
+
+    def _start_docker(self) -> bool:
+        try:
+            subprocess.run(["docker", "rm", "-f", self.CONTAINER],
+                           capture_output=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        cmd = [
+            "docker", "run", "-d",
+            "--name", self.CONTAINER,
+            "--network=host",
+            "--cap-add=NET_RAW",
+            "--cap-add=NET_ADMIN",
+            "--restart", "unless-stopped",
+            "-v", "/usr:/usr:ro", "-v", "/lib:/lib:ro", "-v", "/lib64:/lib64:ro",
+            "-v", f"{os.path.expanduser('~')}/.local:"
+                  f"{os.path.expanduser('~')}/.local:ro",
+            "-v", f"{APP_DIR}:/app",
+            "-w", "/app",
+            "-e", "PYTHONPATH=" + os.path.expanduser("~") +
+                 "/.local/lib/python3.14/site-packages",
+            self.IMAGE,
+            "/usr/bin/python3.14", "/app/netcut.py", "--web", "--web-port", str(PORT),
+        ]
+        log(f"menjalankan: {' '.join(cmd[:8])} … (docker)")
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.SubprocessError) as exc:
+            log(f"docker gagal: {exc}")
+            return False
+        if p.returncode != 0:
+            log(f"docker gagal: {p.stderr.strip()[:200]}")
+            return False
+        self.container = True
+        self._save_state({"mode": "docker", "container": self.CONTAINER})
+        return self.wait_ready()
+
+    def _save_state(self, state: dict) -> None:
+        try:
+            os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+            with open(PID_FILE, "w") as fh:
+                json.dump(state, fh)
+        except OSError:
+            pass
+
+    def _load_state(self) -> dict:
+        """Baca state server. Toleran terhadap format lama (PID polos)."""
+        try:
+            with open(PID_FILE) as fh:
+                raw = fh.read().strip()
+        except OSError:
+            return {}
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                return data
+        except ValueError:
+            pass
+        # format lama: isi file hanya PID
+        try:
+            return {"mode": "native", "pid": int(raw)}
+        except ValueError:
+            return {}
+
+    def is_running(self) -> bool:
+        state = self._load_state()
+        if state.get("mode") == "docker":
+            try:
+                p = subprocess.run(
+                    ["docker", "inspect", "-f", "{{.State.Running}}", self.CONTAINER],
+                    capture_output=True, text=True, timeout=10)
+                return p.stdout.strip() == "true"
+            except (OSError, subprocess.SubprocessError):
+                return False
+        pid = state.get("pid")
+        if not pid:
+            return False
+        try:
+            os.kill(int(pid), 0)
+            return True
+        except (OSError, ValueError):
+            return False
+
+    def wait_ready(self, timeout: float = 25.0) -> bool:
+        end = time.time() + timeout
+        while time.time() < end:
+            try:
+                with urllib.request.urlopen(f"{BASE}/api/hosts", timeout=2) as r:
+                    if r.status == 200:
+                        return True
+            except (urllib.error.URLError, OSError):
+                time.sleep(0.5)
+        return False
+
+    def stop(self) -> None:
+        state = self._load_state()
+        if state.get("mode") == "docker" or self.container:
+            log("menghentikan container...")
+            try:
+                subprocess.run(["docker", "rm", "-f", self.CONTAINER],
+                               capture_output=True, timeout=30)
+            except (OSError, subprocess.SubprocessError):
+                pass
+            self.container = False
+        if self.proc and self.proc.poll() is None:
+            log("menghentikan server...")
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+        try:
+            os.unlink(PID_FILE)
+        except OSError:
+            pass
+
+
+# ---------------------------------------------------------------- API
+def api(path: str, body: dict | None = None) -> dict:
+    try:
+        if body is None:
+            req = urllib.request.Request(f"{BASE}{path}")
+        else:
+            req = urllib.request.Request(
+                f"{BASE}{path}",
+                data=json.dumps(body).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read().decode())
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def snapshot() -> dict:
+    return api("/api/hosts")
+
+
+# ---------------------------------------------------------------- notify
+def notify(title: str, body: str, icon: str = "network-wireless") -> None:
+    try:
+        subprocess.run(["notify-send", "-a", "netcut", "-i", icon, title, body],
+                       capture_output=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+# ---------------------------------------------------------------- GUI
+def run_gui(server: Server, tray_only: bool = False) -> int:
+    """Jalankan web GUI, buka browser, dan (kalau bisa) system tray."""
+    if not server.start():
+        log("gagal menjalankan server web")
+        notify("netcut", "Gagal menjalankan web GUI", "dialog-error")
+
+    def open_dashboard() -> None:
+        try:
+            subprocess.run(["xdg-open", BASE], capture_output=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    if not tray_only:
+        open_dashboard()
+        notify("netcut", f"Web GUI berjalan di {BASE}", "network-wired")
+
+    # Tray icon (GTK4 + AppIndicator) - opsional, kalau tidak tersedia
+    # aplikasi tetap jalan sebagai service.
+    try:
+        from tray import TrayIcon
+        tray = TrayIcon(server, open_dashboard)
+        return tray.run()
+    except Exception as exc:
+        log(f"system tray tidak tersedia ({exc}), aplikasi berjalan di background")
+        # tetap jalankan service + monitor
+        try:
+            while True:
+                time.sleep(2)
+                snap = snapshot()
+                if not snap.get("ok", True) and "error" in snap:
+                    continue
+        except KeyboardInterrupt:
+            pass
+        finally:
+            server.stop()
+    return 0
+
+
+def _kill_other_instances() -> None:
+    """Matikan instance netcut_app.py lain (meninggalkan proses ini)."""
+    me = os.getpid()
+    try:
+        out = subprocess.run(["pgrep", "-f", "netcut_app.py"],
+                             capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return
+    for line in out.split():
+        try:
+            pid = int(line.strip())
+        except ValueError:
+            continue
+        if pid in (me, os.getppid()):
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+            print(f"proses {pid} dihentikan")
+        except OSError:
+            pass
+
+
+def main() -> int:
+    args = sys.argv[1:]
+
+    if "--stop" in args:
+        srv = Server()
+        if srv.is_running():
+            srv.stop()
+            print("server dihentikan")
+        else:
+            print("server tidak berjalan")
+        # matikan juga proses app lain (tray) yang sedang jalan
+        _kill_other_instances()
+        return 0
+
+    if "--status" in args:
+        srv = Server()
+        print("running" if srv.is_running() else "stopped")
+        return 0
+
+    server = Server()
+    try:
+        return run_gui(server, tray_only="--tray" in args)
+    except KeyboardInterrupt:
+        server.stop()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
