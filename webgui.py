@@ -42,80 +42,82 @@ PAGE = r"""<!DOCTYPE html>
 })();
 </script>
 <style>
-/* ============================================================ tokens */
+/* ============================================================ tokens
+   Dua permukaan, satu aksen, tiga warna semantik. Neutrals carry the layout;
+   colour is information. Nilai kontras diukur terhadap permukaan di mana teks
+   itu benar-benar duduk (lihat DESIGN.md). */
 html[data-theme="dark"]{
-  --bg:#0e1016; --panel:#161923; --panel2:#1b1f2a; --panel3:#222736;
-  --line:#272d3b; --line2:#343c4d;
-  --fg:#e7eaf1; --fg2:#b5bcca; --dim:#7e8698;
-  --accent:#5aa9ff; --accent-soft:#5aa9ff1f; --accent-line:#5aa9ff55;
-  --on-accent:#08111f;
-  --ok:#4ec98a; --ok-soft:#4ec98a1f;
-  --warn:#f0b429; --warn-soft:#f0b4291f;
-  --bad:#ef5f6b; --bad-soft:#ef5f6b1f;
-  --rx:#5aa9ff; --tx:#c98bff;
-  --shadow:0 12px 32px #0007;
-  --sel:#5aa9ff24; --hover:#ffffff08;
+  --bg:#0f1116; --panel:#15181f; --panel2:#1b1f28; --panel3:#232833;
+  --line:#262b36; --line2:#333947;
+  --fg:#e7ecf3; --fg2:#b3bcc9; --dim:#8b95a5;
+  --accent:#4d9fe0; --accent-soft:#4d9fe01f; --accent-line:#4d9fe066;
+  --on-accent:#07131d;
+  --ok:#5cba7d; --ok-soft:#5cba7d1a;
+  --warn:#d8a43f; --warn-soft:#d8a43f1a;
+  --bad:#e2706e; --bad-soft:#e2706e1a;
+  --rx:#4d9fe0; --tx:#7d8798;
+  --shadow:0 18px 40px #00000073;
+  --sel:#4d9fe01f; --hover:#ffffff07;
 }
 html[data-theme="light"]{
-  --bg:#f2f4f8; --panel:#ffffff; --panel2:#f4f6fa; --panel3:#eaeef4;
-  --line:#e0e5ec; --line2:#ccd4e0;
-  --fg:#141821; --fg2:#3b4353; --dim:#697283;
-  --accent:#2563eb; --accent-soft:#2563eb12; --accent-line:#2563eb44;
+  --bg:#f6f7f9; --panel:#ffffff; --panel2:#f0f2f5; --panel3:#e6e9ee;
+  --line:#dfe3ea; --line2:#c9cfd9;
+  --fg:#131720; --fg2:#454e5c; --dim:#5e6773;
+  --accent:#1f6fb2; --accent-soft:#1f6fb212; --accent-line:#1f6fb255;
   --on-accent:#ffffff;
-  --ok:#0f8a54; --ok-soft:#0f8a5414;
-  --warn:#9a6300; --warn-soft:#9a630014;
-  --bad:#d32b3a; --bad-soft:#d32b3a14;
-  --rx:#2563eb; --tx:#9333ea;
-  --shadow:0 10px 28px #0f172a1c;
-  --sel:#2563eb14; --hover:#0f172a06;
+  --ok:#16703f; --ok-soft:#16703f14;
+  --warn:#7d5800; --warn-soft:#7d580014;
+  --bad:#b3261e; --bad-soft:#b3261e12;
+  --rx:#1f6fb2; --tx:#5e6773;
+  --shadow:0 16px 36px #0f172a1f;
+  --sel:#1f6fb214; --hover:#0f172a06;
 }
 :root{
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
-  --hh:54px; --r:10px;
+  --hh:50px; --r:6px; --r-sm:4px;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
   margin:0;background:var(--bg);color:var(--fg);
-  font:14px/1.45 var(--sans);
+  font:13px/1.45 var(--sans);
   -webkit-font-smoothing:antialiased;
 }
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
   overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;
-  stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.ic.sm{width:13px;height:13px}
+.ic{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ic.sm{width:12px;height:12px}
 
 /* ============================================================ topbar */
 .topbar{
   position:sticky;top:0;z-index:30;min-height:var(--hh);
-  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-  padding:8px 16px;background:var(--panel);
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  padding:7px 16px;background:var(--panel);
   border-bottom:1px solid var(--line);
 }
-.brand{display:flex;align-items:center;gap:8px;font-weight:650;
-  letter-spacing:-.2px;font-size:15px;white-space:nowrap}
-.brand .logo{width:22px;height:22px;color:var(--accent)}
-.brand b{color:var(--accent);font-weight:650}
+.brand{display:flex;align-items:center;gap:7px;font-weight:600;
+  letter-spacing:-.15px;font-size:14px;white-space:nowrap}
+.brand .logo{width:20px;height:20px;color:var(--accent)}
+.brand b{color:var(--fg2);font-weight:500}
 .brand .ver{color:var(--dim);font-weight:400;font-size:12px}
 
 .netchip{display:flex;align-items:center;gap:7px;min-width:0;
-  background:var(--panel2);border:1px solid var(--line);
-  border-radius:20px;padding:4px 11px 4px 9px;font-size:13px}
-.netchip .ic{color:var(--accent)}
+  border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:3px 9px;font-size:12.5px}
+.netchip .ic{color:var(--dim)}
 .netchip .ssid{font-weight:600;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;max-width:22ch}
 .netchip .gw{color:var(--dim);font-family:var(--mono);font-size:11.5px}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none;
-  box-shadow:0 0 0 3px var(--ok-soft)}
-.dot.stale{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
-.dot.off{background:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)}
+/* titik status: menandai keadaan sungguhan, tanpa glow */
+.dot{width:6px;height:6px;border-radius:50%;background:var(--ok);flex:none}
+.dot.stale{background:var(--warn)}
+.dot.off{background:var(--bad)}
 
-.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;
-  font-weight:600;letter-spacing:.3px;text-transform:uppercase;
-  padding:3px 8px;border-radius:6px;background:var(--panel3);color:var(--dim);
-  white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;
+  font-weight:600;padding:2px 7px;border-radius:var(--r-sm);
+  background:var(--panel2);color:var(--dim);white-space:nowrap}
 .badge.ok{background:var(--ok-soft);color:var(--ok)}
 .badge.warn{background:var(--warn-soft);color:var(--warn)}
 .badge.bad{background:var(--bad-soft);color:var(--bad)}
@@ -128,228 +130,245 @@ body{
 
 /* ============================================================ controls */
 .btn{
-  font:inherit;font-size:13px;font-weight:500;line-height:1;
+  font:inherit;font-size:12.5px;font-weight:500;line-height:1;
   display:inline-flex;align-items:center;gap:6px;
-  padding:7px 11px;border-radius:8px;
+  padding:6px 10px;border-radius:var(--r-sm);
   border:1px solid var(--line2);background:var(--panel2);color:var(--fg);
-  cursor:pointer;transition:background .13s,border-color .13s,color .13s;
+  cursor:pointer;transition:background .12s,border-color .12s,color .12s;
   white-space:nowrap;
 }
 .btn:hover:not(:disabled){background:var(--panel3);border-color:var(--accent-line)}
-.btn:active:not(:disabled){transform:translateY(.5px)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);
   font-weight:600}
-.btn.pri:hover:not(:disabled){filter:brightness(1.08)}
+.btn.pri:hover:not(:disabled){filter:brightness(1.06)}
 .btn.danger{color:var(--bad);border-color:var(--bad-soft);background:var(--bad-soft)}
 .btn.danger:hover:not(:disabled){background:var(--bad);color:#fff;
   border-color:var(--bad)}
-.btn.ghost{background:transparent}
-.btn.icon{padding:7px;width:32px;justify-content:center}
-.btn.sm{padding:5px 9px;font-size:12px}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--fg2)}
+.btn.ghost:hover:not(:disabled){background:var(--panel2);color:var(--fg)}
+::placeholder{color:var(--dim);opacity:1}
+.btn.icon{padding:6px;width:28px;justify-content:center}
+.btn.sm{padding:4px 8px;font-size:12px}
 .btn.on{background:var(--accent-soft);border-color:var(--accent-line);
   color:var(--accent)}
+.btn.dgr{color:var(--bad);border-color:var(--line2)}
+.btn.dgr:hover:not(:disabled){background:var(--bad-soft);border-color:var(--bad)}
+.btn.acc{color:var(--accent);border-color:var(--accent-line);
+  background:var(--accent-soft)}
 select,input[type=text],input[type=number],input[type=search]{
-  font:inherit;font-size:13px;padding:7px 9px;border-radius:8px;
-  border:1px solid var(--line2);background:var(--panel2);color:var(--fg);
-  font-family:var(--mono);max-width:100%;
+  font:inherit;font-size:12.5px;padding:5px 8px;border-radius:var(--r-sm);
+  border:1px solid var(--line2);background:var(--panel);color:var(--fg);
+  max-width:100%;
 }
+select{font-family:var(--mono);font-size:11.5px}
 select:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px}
 label.field{display:inline-flex;align-items:center;gap:6px}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* ============================================================ layout */
-main{padding:16px;max-width:1560px;margin:0 auto;padding-bottom:96px}
-.cards{display:grid;gap:10px;margin-bottom:14px;
-  grid-template-columns:repeat(auto-fit,minmax(158px,1fr))}
-.card{background:var(--panel);border:1px solid var(--line);
-  border-radius:var(--r);padding:11px 13px;display:flex;gap:11px;
-  align-items:flex-start}
-.card .ic{width:18px;height:18px;margin-top:2px;color:var(--dim)}
-.card .k{color:var(--dim);font-size:10.5px;text-transform:uppercase;
-  letter-spacing:.6px;font-weight:600;display:flex;align-items:center;gap:5px}
-.card .v{font-family:var(--mono);font-size:20px;font-weight:650;
-  line-height:1.2;margin-top:3px;letter-spacing:-.5px}
-.card .v small{font-size:11.5px;color:var(--dim);font-weight:500;
-  letter-spacing:0}
-.card .s{color:var(--dim);font-size:11.5px;margin-top:2px;font-family:var(--mono)}
-.card.rx .ic{color:var(--rx)} .card.tx .ic{color:var(--tx)}
-.card.hosts .ic{color:var(--accent)}
-.card.blk .ic{color:var(--bad)}
-.card.blk.hot .ic,.card.blk.hot .v{color:var(--bad)}
-.card.pkt .ic{color:var(--dim)}
+main{padding:14px 16px;max-width:1240px;margin:0 auto;padding-bottom:96px}
+
+/* jawaban untuk pembacaan 5 detik: satu kalimat, posisi tetap, dengan umur data */
+.answer{margin:0 0 10px;font-size:14px;line-height:1.5;color:var(--fg);
+  display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.answer .age{color:var(--dim);font-size:12px;font-variant-numeric:tabular-nums;
+  margin-left:2px}
+.answer.stale{color:var(--warn)}
+
+/* strip ringkasan: angka pendukung, bukan kartu */
+.linkstrip{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 20px;
+  width:fit-content;max-width:100%;
+  padding:8px 12px;margin-bottom:12px;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r)}
+.stat{display:flex;flex-direction:column;gap:1px;min-width:0}
+.stat .k{color:var(--dim);font-size:11px;font-weight:500}
+.stat .v{font-size:15px;font-weight:600;line-height:1.2;
+  font-variant-numeric:tabular-nums}
+.stat .v small{font-size:11px;color:var(--dim);font-weight:500;margin-left:2px}
+.stat .s{color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums}
+.stat .s:empty{display:none}
+.stat.hot .v{color:var(--bad)}
 
 /* ============================================================ toolbar */
 .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  margin-bottom:10px}
-.search{position:relative;flex:1 1 240px;max-width:380px;min-width:180px}
-.search .ic{position:absolute;left:9px;top:50%;transform:translateY(-50%);
+  margin-bottom:8px}
+.search{position:relative;flex:1 1 240px;max-width:340px;min-width:180px}
+.search .ic{position:absolute;left:8px;top:50%;transform:translateY(-50%);
   color:var(--dim);pointer-events:none}
-.search input{width:100%;padding-left:31px;font-family:var(--sans)}
-.search kbd{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+.search input{width:100%;padding-left:29px;font-family:var(--sans)}
+.search kbd{position:absolute;right:7px;top:50%;transform:translateY(-50%);
   color:var(--dim);font-size:10px;font-family:var(--mono);
-  border:1px solid var(--line2);border-radius:4px;padding:0 4px;
+  border:1px solid var(--line2);border-radius:3px;padding:0 4px;
   pointer-events:none}
 .search input:not(:placeholder-shown)~kbd{display:none}
-.chips{display:flex;gap:5px;background:var(--panel2);padding:3px;
-  border-radius:9px;border:1px solid var(--line)}
-.chip{font:inherit;font-size:12.5px;font-weight:500;padding:5px 10px;
-  border-radius:6px;border:0;background:transparent;color:var(--dim);
-  cursor:pointer;display:inline-flex;align-items:center;gap:5px}
-.chip:hover{color:var(--fg)}
+.chips{display:flex;gap:2px}
+.chip{font:inherit;font-size:12.5px;font-weight:500;padding:4px 9px;
+  border-radius:var(--r-sm);border:1px solid transparent;background:transparent;
+  color:var(--dim);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.chip:hover{color:var(--fg);background:var(--panel2)}
 .chip[aria-pressed="true"]{background:var(--panel);color:var(--fg);
-  box-shadow:0 1px 3px #0003}
-.chip .ct{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  border-color:var(--line2)}
+.chip .ct{font-family:var(--mono);font-size:10.5px;color:var(--dim);
+  font-variant-numeric:tabular-nums}
 .chip[aria-pressed="true"] .ct{color:var(--accent)}
-.chip.danger[aria-pressed="true"]{color:var(--bad)}
+.chip.danger[aria-pressed="true"]{color:var(--bad);border-color:var(--bad-soft)}
 
 /* ============================================================ table */
 .tablewrap{background:var(--panel);border:1px solid var(--line);
-  border-radius:var(--r);overflow:auto;max-height:calc(100vh - 300px)}
-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+  border-radius:var(--r);overflow:auto;max-height:calc(100vh - 260px)}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;
+  table-layout:fixed}
 thead th{
   position:sticky;top:0;z-index:5;text-align:left;
-  font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
-  color:var(--dim);font-weight:650;padding:0 12px;height:36px;
+  font-size:11px;font-weight:600;letter-spacing:0;
+  color:var(--dim);padding:0 10px;height:32px;
   background:var(--panel2);white-space:nowrap;
-  border-bottom:1px solid var(--line);
+  border-bottom:1px solid var(--line2);
 }
 thead th.sortable{cursor:pointer;user-select:none}
 thead th.sortable:hover{color:var(--fg)}
-thead th .sortmark{display:inline-block;width:10px;margin-left:4px;
+thead th .sortmark{display:inline-block;width:9px;margin-left:3px;
   opacity:0;transition:opacity .12s}
 thead th[aria-sort] .sortmark{opacity:1;color:var(--accent)}
 thead th[aria-sort="ascending"] .sortmark{transform:rotate(180deg)}
 thead th.num,td.num{text-align:right}
-tbody td{padding:0 12px;height:38px;border-bottom:1px solid var(--line);
-  font-family:var(--mono);font-size:12.5px;vertical-align:middle;
-  white-space:nowrap}
+tbody td{padding:0 10px;height:30px;border-bottom:1px solid var(--line);
+  font-size:12.5px;vertical-align:middle;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
 tbody tr:last-child td{border-bottom:0}
 tbody tr:hover{background:var(--hover)}
 tbody tr.sel{background:var(--sel)}
-tbody tr.blocked{background:var(--bad-soft)}
-tbody tr.blocked:hover{background:var(--bad-soft);filter:brightness(1.15)}
-tbody tr.blocked td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
-tbody tr.idle{opacity:.5}
+/* rel status: satu-satunya tempat warna menyentuh baris */
+tbody tr.blocked td.c-sel{box-shadow:inset 2px 0 0 var(--bad)}
+tbody tr.limited td.c-sel{box-shadow:inset 2px 0 0 var(--warn)}
+tbody tr.idle td{color:var(--dim)}
+tbody tr.idle .iptext,tbody tr.idle .hostname{color:var(--fg2)}
 td.c-sel{width:34px;padding-right:0}
-td.c-ip{width:132px}
+td.c-ip{width:142px}
 td.c-mac{width:140px;color:var(--fg2)}
-td.c-dev{min-width:150px;max-width:260px}
-td.c-num{width:112px}
+td.c-dev{width:214px}
+td.c-num{width:106px}
 td.c-tot{width:92px;color:var(--fg2)}
-td.c-st{min-width:110px}
-td.c-act{width:158px}
+td.c-st{width:200px}
+td.c-act{width:152px}
 td.c-dev{cursor:pointer}
 td.c-dev:hover .hostname{color:var(--accent);text-decoration:underline dotted}
-.devbox{display:flex;flex-direction:column;min-width:0;line-height:1.3}
-.hostname{font-family:var(--sans);font-size:12.5px;font-weight:650;color:var(--fg);
+.devbox{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.hostname{font-size:12.5px;font-weight:600;color:var(--fg);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hostname:empty{display:none}
-.vendor{font-family:var(--sans);font-size:12.5px;color:var(--fg2);
-  overflow:hidden;text-overflow:ellipsis}
+.devline{display:block;min-width:0;overflow:hidden}
+.vendor{font-size:12px;color:var(--fg2);display:inline-block;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  vertical-align:middle}
 .vendor.sub{font-size:11px;color:var(--dim)}
-.iptext{font-family:var(--mono);font-size:12.5px}
+.iptext{font-family:var(--mono);font-size:12px;letter-spacing:-.1px}
+td.c-mac{font-family:var(--mono);font-size:11.5px;letter-spacing:-.1px}
 .copybtn{font:inherit;background:none;border:0;color:var(--dim);cursor:pointer;
-  padding:1px 2px;border-radius:4px;display:inline-flex;vertical-align:middle;
+  padding:1px 2px;border-radius:3px;display:inline-flex;vertical-align:middle;
   opacity:0;transition:opacity .12s}
 tr:hover .copybtn,.copybtn:focus-visible{opacity:1}
-.copybtn:hover{color:var(--accent);background:var(--panel3)}
-.micro{font-family:var(--sans);font-size:10.5px;color:var(--dim);
-  border:1px solid var(--line2);border-radius:4px;padding:0 4px;
+.copybtn:hover{color:var(--accent)}
+.micro{font-size:10.5px;color:var(--dim);
+  border:1px solid var(--line2);border-radius:3px;padding:0 4px;
   margin-left:5px}
-.bar{display:inline-block;height:4px;border-radius:2px;vertical-align:middle;
-  margin-left:7px;background:var(--rx);min-width:1px}
+.bar{display:inline-block;height:3px;border-radius:2px;vertical-align:middle;
+  margin-left:6px;background:var(--rx);min-width:1px;opacity:.85}
 .bar.tx{background:var(--tx)}
-.rowact{display:flex;gap:5px;justify-content:flex-end;align-items:center}
-.tag{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;
-  border-radius:20px;font-size:11px;font-family:var(--sans);
-  font-weight:600;margin-right:4px}
+.rowact{display:flex;gap:4px;justify-content:flex-end;align-items:center}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;
+  border-radius:3px;font-size:11px;font-weight:600;margin-right:4px}
 .tag.blk{background:var(--bad-soft);color:var(--bad)}
 .tag.lim{background:var(--warn-soft);color:var(--warn)}
-.tag.arp{background:#c98bff22;color:var(--tx)}
-.tag.self{background:var(--accent-soft);color:var(--accent)}
+.tag.arp{background:var(--accent-soft);color:var(--accent)}
+.tag.self{background:var(--panel3);color:var(--fg2);font-weight:500;
+  margin-left:6px;vertical-align:middle}
 .tag.warn{background:var(--warn-soft);color:var(--warn);cursor:help}
 tfoot td{position:sticky;bottom:0;background:var(--panel2);
-  border-top:1px solid var(--line2);height:34px;font-family:var(--mono);
-  font-size:12px;font-weight:600;color:var(--fg2);z-index:4}
+  border-top:1px solid var(--line2);height:30px;
+  font-size:11.5px;font-weight:600;color:var(--fg2);z-index:4;
+  font-variant-numeric:tabular-nums}
+
+/* ============================================================ alerts */
 .fallback{display:flex;gap:10px;align-items:flex-start;
-  background:var(--warn-soft);border:1px solid var(--warn);
-  border-radius:var(--r);padding:11px 14px;margin-bottom:10px;
-  font-size:13px;line-height:1.55;color:var(--fg)}
+  background:var(--warn-soft);border-left:3px solid var(--warn);
+  border-radius:var(--r-sm);padding:9px 12px;margin-bottom:10px;
+  font-size:12.5px;line-height:1.55;color:var(--fg)}
 .fallback[hidden]{display:none}
 .fallback .ic{color:var(--warn);flex:none;margin-top:2px}
 .fallback b{color:var(--warn)}
-.fallback code{font-family:var(--mono);background:var(--panel2);
-  padding:1px 5px;border-radius:4px;border:1px solid var(--line)}
-.empty{padding:44px 20px;text-align:center;color:var(--dim)}
-.empty .ic{width:30px;height:30px;margin-bottom:10px;color:var(--line2);
+.fallback code{font-family:var(--mono);font-size:11.5px;background:var(--panel);
+  padding:1px 4px;border-radius:3px;border:1px solid var(--line)}
+.empty{padding:40px 20px;text-align:center;color:var(--dim)}
+.empty .ic{width:26px;height:26px;margin-bottom:8px;color:var(--line2);
   stroke-width:1.4}
-.empty h3{color:var(--fg2);font-size:14px;margin:0 0 5px;font-weight:600}
-.empty p{margin:0 0 14px;font-size:13px}
+.empty h3{color:var(--fg);font-size:13.5px;margin:0 0 4px;font-weight:600}
+.empty p{margin:0 0 12px;font-size:12.5px}
 
 /* ============================================================ bulk bar */
-.bulkbar{position:fixed;left:50%;bottom:18px;transform:translate(-50%,18px);
-  z-index:40;display:flex;align-items:center;gap:9px;
-  background:var(--panel);border:1px solid var(--line2);border-radius:12px;
-  padding:8px 10px 8px 14px;box-shadow:var(--shadow);
+.bulkbar{position:fixed;left:50%;bottom:16px;transform:translate(-50%,14px);
+  z-index:40;display:flex;align-items:center;gap:8px;
+  background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);
+  padding:7px 9px 7px 12px;box-shadow:var(--shadow);
   opacity:0;visibility:hidden;pointer-events:none;
-  transition:opacity .18s,transform .18s,visibility .18s}
+  transition:opacity .16s,transform .16s,visibility .16s}
 .bulkbar.on{opacity:1;visibility:visible;transform:translate(-50%,0);
   pointer-events:auto}
-.bulkbar .cnt{font-size:13px;font-weight:600;white-space:nowrap}
-.bulkbar .cnt b{color:var(--accent);font-family:var(--mono)}
-.bulkbar .sep{width:1px;height:20px;background:var(--line)}
-input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;
+.bulkbar .cnt{font-size:12.5px;font-weight:600;white-space:nowrap}
+.bulkbar .cnt b{color:var(--accent);font-variant-numeric:tabular-nums}
+.bulkbar .sep{width:1px;height:18px;background:var(--line)}
+input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;
   cursor:pointer;margin:0;vertical-align:middle}
 
 /* ============================================================ modal */
-.backdrop{position:fixed;inset:0;background:#000a;backdrop-filter:blur(3px);
+.backdrop{position:fixed;inset:0;background:#000000b3;
   z-index:50;display:flex;align-items:center;justify-content:center;
-  padding:20px;opacity:0;pointer-events:none;transition:opacity .16s}
+  padding:20px;opacity:0;pointer-events:none;transition:opacity .15s}
 .backdrop.on{opacity:1;pointer-events:auto}
 .modal{background:var(--panel);border:1px solid var(--line2);
-  border-radius:14px;box-shadow:var(--shadow);width:min(520px,100%);
+  border-radius:8px;box-shadow:var(--shadow);width:min(520px,100%);
   max-height:86vh;display:flex;flex-direction:column;
-  transform:translateY(8px) scale(.99);transition:transform .16s}
+  transform:translateY(6px);transition:transform .15s}
 .backdrop.on .modal{transform:none}
 .modal.wide{width:min(760px,100%)}
-.modal header{display:flex;align-items:center;gap:9px;padding:14px 16px;
+.modal header{display:flex;align-items:center;gap:9px;padding:12px 14px;
   border-bottom:1px solid var(--line)}
-.modal header h2{font-size:14.5px;margin:0;font-weight:650;flex:1}
-.modal .body{padding:16px;overflow:auto}
-.modal footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;
+.modal header h2{font-size:13.5px;margin:0;font-weight:600;flex:1}
+.modal .body{padding:14px;overflow:auto}
+.modal footer{display:flex;gap:8px;justify-content:flex-end;padding:10px 14px;
   border-top:1px solid var(--line);background:var(--panel2);
-  border-radius:0 0 14px 14px}
-.xbtn{background:none;border:0;color:var(--dim);cursor:pointer;padding:4px;
-  border-radius:6px;display:inline-flex}
-.xbtn:hover{color:var(--fg);background:var(--panel3)}
-.fieldlbl{display:block;font-size:11px;text-transform:uppercase;
-  letter-spacing:.6px;color:var(--dim);font-weight:650;margin-bottom:6px}
+  border-radius:0 0 8px 8px}
+.xbtn{background:none;border:0;color:var(--dim);cursor:pointer;padding:3px;
+  border-radius:var(--r-sm);display:inline-flex}
+.xbtn:hover{color:var(--fg);background:var(--panel2)}
+.fieldlbl{display:block;font-size:11.5px;color:var(--dim);
+  font-weight:600;margin-bottom:5px}
 .presets{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 14px}
 .presets .btn{flex:1 1 84px;justify-content:center}
-.hostslist{display:flex;flex-direction:column;gap:5px;max-height:220px;
+.hostslist{display:flex;flex-direction:column;gap:4px;max-height:220px;
   overflow:auto;margin:10px 0 0;padding:0;list-style:none}
 .hostslist li{display:flex;align-items:center;gap:8px;font-family:var(--mono);
-  font-size:12px;background:var(--panel2);border:1px solid var(--line);
-  border-radius:7px;padding:6px 10px}
+  font-size:11.5px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:var(--r-sm);padding:5px 9px}
 .hostslist li .vd{font-family:var(--sans);color:var(--dim);margin-left:auto;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%}
 .hint{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.55}
 .note{background:var(--warn-soft);border-left:3px solid var(--warn);
-  padding:9px 12px;border-radius:6px;margin:10px 0;font-size:12.5px;
+  padding:8px 11px;border-radius:var(--r-sm);margin:10px 0;font-size:12.5px;
   line-height:1.5}
 .note b{color:var(--warn)}
-pre.code{font-family:var(--mono);font-size:12px;background:var(--panel2);
-  border:1px solid var(--line);border-radius:8px;padding:12px;margin:0;
+pre.code{font-family:var(--mono);font-size:11.5px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:var(--r-sm);padding:11px;margin:0;
   overflow:auto;max-height:52vh;white-space:pre;line-height:1.5}
 
 /* ============================================================ toasts */
-.toasts{position:fixed;top:calc(var(--hh) + 10px);right:14px;z-index:60;
-  display:flex;flex-direction:column;gap:8px;max-width:min(370px,calc(100vw - 28px))}
+.toasts{position:fixed;top:calc(var(--hh) + 8px);right:12px;z-index:60;
+  display:flex;flex-direction:column;gap:7px;max-width:min(370px,calc(100vw - 28px))}
 .toast{display:flex;align-items:flex-start;gap:9px;background:var(--panel);
   border:1px solid var(--line2);border-left:3px solid var(--accent);
-  border-radius:9px;padding:9px 12px;box-shadow:var(--shadow);font-size:13px;
-  animation:tin .18s ease-out}
+  border-radius:var(--r-sm);padding:8px 11px;box-shadow:var(--shadow);
+  font-size:12.5px;animation:tin .15s ease-out}
 .toast.err{border-left-color:var(--bad)}
 .toast.ok{border-left-color:var(--ok)}
 .toast.warn{border-left-color:var(--warn)}
@@ -358,27 +377,27 @@ pre.code{font-family:var(--mono);font-size:12px;background:var(--panel2);
 .toast.ok .ic{color:var(--ok)}
 .toast.warn .ic{color:var(--warn)}
 .toast .msg{flex:1;line-height:1.4;word-break:break-word}
-.toast .msg b{font-weight:650}
-.toast.out{animation:tout .16s ease-in forwards}
-@keyframes tin{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
-@keyframes tout{to{opacity:0;transform:translateX(14px)}}
+.toast .msg b{font-weight:600}
+.toast.out{animation:tout .15s ease-in forwards}
+@keyframes tin{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+@keyframes tout{to{opacity:0;transform:translateX(12px)}}
 
 /* ============================================================ footer */
-.foot{margin-top:14px;color:var(--dim);font-size:12px;line-height:1.65;
-  border-top:1px solid var(--line);padding-top:12px}
+.foot{margin-top:12px;color:var(--dim);font-size:12px;line-height:1.6;
+  border-top:1px solid var(--line);padding-top:10px}
 .foot summary{cursor:pointer;color:var(--fg2);font-weight:600;
   list-style:none;display:flex;align-items:center;gap:7px;
-  width:fit-content;padding:4px 0}
+  width:fit-content;padding:3px 0}
 .foot summary::-webkit-details-marker{display:none}
 .foot summary:hover{color:var(--fg)}
 .foot .inner{padding:6px 0 2px;max-width:80ch}
-.foot code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;
-  border-radius:4px;border:1px solid var(--line)}
-kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
-  border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;
-  padding:1px 5px;color:var(--fg2)}
+.foot code{font-family:var(--mono);font-size:11.5px;background:var(--panel2);
+  padding:1px 4px;border-radius:3px;border:1px solid var(--line)}
+kbd{font-family:var(--mono);font-size:10.5px;background:var(--panel2);
+  border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;
+  padding:1px 4px;color:var(--fg2)}
 .keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-  gap:6px 18px;margin-top:10px}
+  gap:5px 18px;margin-top:9px}
 .keys div{display:flex;align-items:center;gap:8px;font-size:12px}
 .keys div span{color:var(--dim)}
 
@@ -389,39 +408,39 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
   thead th, tbody td, tfoot td{height:auto}
 }
 @media (max-width:760px){
-  main{padding:11px}
-  .topbar{padding:7px 11px;gap:7px}
+  main{padding:10px}
+  .topbar{padding:6px 10px;gap:6px}
   .brand .ver{display:none}
-  .cards{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
-  .card .v{font-size:17px}
+  .linkstrip{gap:0 16px}
+  .stat .v{font-size:14px}
   /* tabel -> kartu */
   .tablewrap{background:transparent;border:0;border-radius:0;overflow:visible}
   table,tbody,tr,td{display:block;width:100%}
   thead{display:none}
   tbody tr{background:var(--panel);border:1px solid var(--line);
-    border-radius:var(--r);margin-bottom:8px;padding:8px 4px;position:relative}
+    border-radius:var(--r);margin-bottom:7px;padding:7px 3px;position:relative}
   tbody tr.blocked{border-color:var(--bad)}
-  tbody td{height:auto;padding:3px 10px;border:0;display:flex;
+  tbody tr.limited{border-color:var(--warn)}
+  tbody td{height:auto;padding:3px 9px;border:0;display:flex;
     align-items:center;gap:8px;white-space:nowrap}
   tbody td.c-dev{white-space:normal}
   tbody td.c-dev .vendor{white-space:normal}
   tbody td .rowact{flex:1}
-  tbody td::before{content:attr(data-label);color:var(--dim);font-family:var(--sans);
-    font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
-    width:74px;flex:none;font-weight:650}
-  tbody td.c-sel{position:absolute;top:9px;right:9px;width:auto;padding:0}
+  tbody td::before{content:attr(data-label);color:var(--dim);
+    font-size:11px;width:70px;flex:none;font-weight:600}
+  tbody td.c-sel{position:absolute;top:8px;right:8px;width:auto;padding:0}
   tbody td.c-sel::before{display:none}
   tbody td.c-ip{width:auto}
   tbody td.c-ip::before{display:none}
-  tbody td.c-ip .iptext{font-size:14px;font-weight:600}
+  tbody td.c-ip .iptext{font-size:13.5px;font-weight:600}
   tbody td.c-ip .copybtn{opacity:1}
-  tbody td.c-act{width:auto;padding-top:8px}
+  tbody td.c-act{width:auto;padding-top:7px}
   tbody td.c-act::before{display:none}
   tfoot{display:none}
-  .bulkbar{left:10px;right:10px;transform:none;bottom:10px;flex-wrap:wrap;
+  .bulkbar{left:9px;right:9px;transform:none;bottom:9px;flex-wrap:wrap;
     justify-content:center}
   .bulkbar.on{transform:none}
-  .toasts{right:10px;left:10px;max-width:none}
+  .toasts{right:9px;left:9px;max-width:none}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms!important;transition-duration:.01ms!important}
@@ -467,7 +486,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
     <span class="gw" id="netGw"></span>
   </span>
 
-  <span class="badge" id="modeBadge">—</span>
+  <span class="badge" id="modeBadge">memuat</span>
   <span class="badge" id="scanBadge" hidden></span>
   <span class="badge" id="pauseBadge" hidden>Jeda</span>
 
@@ -482,7 +501,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
       <svg class="ic"><use href="#i-scan"/></svg>Scan
     </button>
     <button class="btn ghost" id="rulesBtn" title="Aturan nftables aktif (R)">
-      <svg class="ic"><use href="#i-list"/></svg>Rules
+      <svg class="ic"><use href="#i-list"/></svg>Aturan
     </button>
     <button class="btn ghost icon" id="pauseBtn" title="Jeda / lanjut polling (P)"
             aria-label="Jeda polling"><svg class="ic"><use href="#i-pause"/></svg></button>
@@ -494,32 +513,25 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
 </header>
 
 <main>
-  <div class="cards">
-    <div class="card rx">
-      <svg class="ic"><use href="#i-down"/></svg>
-      <div><div class="k">Download</div><div class="v" id="cRx">0</div>
-        <div class="s" id="cRxSub">—</div></div>
-    </div>
-    <div class="card tx">
-      <svg class="ic"><use href="#i-up"/></svg>
-      <div><div class="k">Upload</div><div class="v" id="cTx">0</div>
-        <div class="s" id="cTxSub">—</div></div>
-    </div>
-    <div class="card hosts">
-      <svg class="ic"><use href="#i-host"/></svg>
-      <div><div class="k">Host</div><div class="v" id="cHosts">0</div>
-        <div class="s" id="cHostsSub">—</div></div>
-    </div>
-    <div class="card blk" id="cardBlk">
-      <svg class="ic"><use href="#i-ban"/></svg>
-      <div><div class="k">Diblokir</div><div class="v" id="cBlk">0</div>
-        <div class="s" id="cBlkSub">—</div></div>
-    </div>
-    <div class="card pkt">
-      <svg class="ic"><use href="#i-pkg"/></svg>
-      <div><div class="k">Paket</div><div class="v" id="cPkts">0</div>
-        <div class="s" id="cPktsSub">—</div></div>
-    </div>
+  <p class="answer" id="answer">
+    <span id="answerText">memuat data…</span><span class="age" id="answerAge"></span>
+  </p>
+
+  <div class="linkstrip" role="group" aria-label="Ringkasan lalu lintas">
+    <div class="stat"><span class="k">Unduh</span>
+      <span class="v" id="cRx">0</span><span class="s" id="cRxSub"></span></div>
+    <div class="stat"><span class="k">Unggah</span>
+      <span class="v" id="cTx">0</span><span class="s" id="cTxSub"></span></div>
+    <div class="stat"><span class="k">Perangkat</span>
+      <span class="v" id="cHosts">0</span><span class="s" id="cHostsSub"></span></div>
+    <div class="stat" id="cardBlk"><span class="k">Diblokir</span>
+      <span class="v" id="cBlk">0</span></div>
+    <div class="stat"><span class="k">Dibatasi</span>
+      <span class="v" id="cLim">0</span></div>
+    <div class="stat"><span class="k">Paket</span>
+      <span class="v" id="cPkts">0</span><span class="s" id="cPktsSub"></span></div>
+    <div class="stat"><span class="k">Berjalan</span>
+      <span class="v" id="uptimeBadge">0s</span></div>
   </div>
 
   <div class="toolbar">
@@ -536,11 +548,10 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
         <span class="ct" id="ctActive">0</span></button>
       <button class="chip" data-f="blocked" aria-pressed="false">Diblokir
         <span class="ct" id="ctBlocked">0</span></button>
-      <button class="chip danger" data-f="limited" aria-pressed="false">Limited
+      <button class="chip danger" data-f="limited" aria-pressed="false">Dibatasi
         <span class="ct" id="ctLimited">0</span></button>
     </div>
     <span class="grow"></span>
-    <span class="badge" id="uptimeBadge" title="Waktu aktif">0s</span>
   </div>
 
   <div id="fwWarn" class="fallback" hidden>
@@ -557,7 +568,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
   <div id="fallback" class="fallback" hidden>
     <svg class="ic"><use href="#i-alert"/></svg>
     <div>
-      <b>Mode fallback — hanya monitoring, tanpa kontrol.</b>
+      <b>Mode fallback: hanya monitoring, tanpa kontrol.</b>
       Server tidak punya <code>CAP_NET_RAW</code>/<code>CAP_NET_ADMIN</code>,
       jadi blokir &amp; limit dinonaktifkan. Jalankan <code>netcut --doctor</code>
       untuk cek, atau jalankan lewat docker / <code>sudo</code> agar semua fitur aktif.
@@ -572,8 +583,8 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
         <th class="sortable c-ip" data-k="ip">IP<span class="sortmark">▾</span></th>
         <th class="sortable c-mac" data-k="mac">MAC<span class="sortmark">▾</span></th>
         <th class="sortable c-dev" data-k="vendor">Perangkat<span class="sortmark">▾</span></th>
-        <th class="sortable num c-num" data-k="rx_rate">↓ Download<span class="sortmark">▾</span></th>
-        <th class="sortable num c-num" data-k="tx_rate">↑ Upload<span class="sortmark">▾</span></th>
+        <th class="sortable num c-num" data-k="rx_rate">↓ Unduh<span class="sortmark">▾</span></th>
+        <th class="sortable num c-num" data-k="tx_rate">↑ Unggah<span class="sortmark">▾</span></th>
         <th class="sortable num c-tot" data-k="total">Total<span class="sortmark">▾</span></th>
         <th class="c-st">Status</th>
         <th class="num c-act">Aksi</th>
@@ -604,7 +615,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
       target aktif. Hanya untuk perangkat milik sendiri di jaringan sendiri.</p>
       <p><b>Limit</b> membatasi bandwidth lewat rate limiter nftables di chain
       <code>forward</code>. Badge <span class="tag warn">!</span> muncul bila
-      router menolak ARP spoof — dalam hal ini limit hanya berlaku untuk arah
+      router menolak ARP spoof, sehingga limit hanya berlaku untuk arah
       upload, dan <b>Blokir</b> adalah cara yang pasti membatasi total.</p>
       <div class="keys">
         <div><kbd>/</kbd><span>Cari host</span></div>
@@ -658,7 +669,7 @@ const S = {
   notes: {}, net: {}, iface: "", mode: "", uptime: 0, stale: false,
   forwardBlocked: "",
   packets: 0, dropped: 0, rxRate: 0, txRate: 0, peerRate: 0,
-  sortKey: "rx_rate", sortDir: -1, query: "", filter: "all",
+  sortKey: "rx_rate", sortDir: -1, query: "", filter: "all", lastFetch: 0,
   selected: new Set(), paused: false, online: true, scanning: false,
   scanResult: null, interfaces: [], rows: new Map(), lastOrder: "",
   lastAnchor: null, busy: false,
@@ -742,6 +753,7 @@ async function api(path, body) {
 
 /* ---------------------------------------------------------- snapshot */
 function applySnapshot(d) {
+  S.lastFetch = Date.now();
   S.hosts = d.hosts || [];
   S.blocked = new Set(d.blocked || []);
   S.limited = new Map(Object.entries(d.limited || {}));
@@ -808,9 +820,9 @@ function makeRow(h) {
     `<td class="c-mac" data-label="MAC"></td>` +
     `<td class="c-dev" data-label="Perangkat">` +
       `<div class="devbox"><span class="hostname"></span>` +
-      `<span class="vendor"></span></div></td>` +
-    `<td class="num c-num c-rx" data-label="Download"></td>` +
-    `<td class="num c-num c-tx" data-label="Upload"></td>` +
+      `<span class="devline"><span class="vendor"></span></span></div></td>` +
+    `<td class="num c-num c-rx" data-label="Unduh"></td>` +
+    `<td class="num c-num c-tx" data-label="Unggah"></td>` +
     `<td class="num c-tot" data-label="Total"></td>` +
     `<td class="c-st" data-label="Status"></td>` +
     `<td class="c-act" data-label=""><div class="rowact"></div></td>`;
@@ -824,6 +836,7 @@ function makeRow(h) {
     tx: tr.querySelector(".c-tx"),
     tot: tr.querySelector(".c-tot"),
     st: tr.querySelector(".c-st"),
+    devline: tr.querySelector(".devline"),
     act: tr.querySelector(".rowact"),
   };
   tr._c.sel.addEventListener("click", ev => {
@@ -850,12 +863,10 @@ function statusHTML(h) {
   if (S.blocked.has(h.ip)) st += '<span class="tag blk">diblokir</span>';
   if (S.spoofing.has(h.ip)) st += '<span class="tag arp">ARP spoof</span>';
   const lim = S.limited.get(h.ip);
-  if (lim) st += `<span class="tag lim">${lim} kbps</span>`;
+  if (lim) st += `<span class="tag lim" title="Dibatasi ${lim} kbit/s">limit ${lim}kbit</span>`;
   if (S.notes[h.ip])
-    st += `<span class="tag warn" title="${esc(S.notes[h.ip])}">!</span>`;
-  if (S.net && S.net.ip && h.ip === S.net.ip)
-    st += '<span class="tag self" title="Perangkat ini (laptop Anda)">laptop ini</span>';
-  return st || '<span style="color:var(--dim)">—</span>';
+    st += `<span class="tag warn" title="${esc(S.notes[h.ip])}">peringatan</span>`;
+  return st;
 }
 
 function actHTML(h) {
@@ -864,12 +875,16 @@ function actHTML(h) {
   // kontrol dimatikan dari awal. Lebih baik mati dengan penjelasan daripada
   // gagal setelah diklik.
   const dis = S.mode === "capture" ? "" : " disabled";
-  let s = bl
-    ? `<button class="btn sm" data-act="unblock" data-ip="${esc(h.ip)}"${dis}>Buka</button>`
-    : `<button class="btn sm danger" data-act="block" data-ip="${esc(h.ip)}"${dis}>Blokir</button>`;
+  if (bl) {
+    // perangkat yang sedang diblokir tidak ditawari Limit: dua keadaan itu
+    // saling meniadakan, dan menawarkannya membuat orang menebak
+    return `<button class="btn sm acc" data-act="unblock" data-ip="${esc(h.ip)}"${dis}>Buka</button>`;
+  }
+  let s = `<button class="btn sm dgr" data-act="block" data-ip="${esc(h.ip)}"${dis}>Blokir</button>`;
   s += `<button class="btn sm" data-act="limit" data-ip="${esc(h.ip)}"${dis}>Limit</button>`;
   if (lim)
-    s += `<button class="btn sm ghost" data-act="unlimit" data-ip="${esc(h.ip)}"${dis}>×</button>`;
+    s += `<button class="btn sm ghost" data-act="unlimit" data-ip="${esc(h.ip)}"${dis}` +
+         ` title="Buka limit" aria-label="Buka limit">×</button>`;
   return s;
 }
 
@@ -880,26 +895,36 @@ function updateRow(tr, h, top) {
   const wTx = Math.min(56, (h.tx_rate || 0) / top * 56);
 
   setText(c.ip, h.ip);
-  setText(c.mac, h.mac || "—");
+  // "laptop ini" adalah identitas, bukan status kontrol: tandai di baris
+  // perangkat, tempat ia menjelaskan siapa pemilik alamat itu
+  const isSelf = !!(S.net && S.net.ip && h.ip === S.net.ip);
+  const selfTag = c.devline.querySelector(".tag.self");
+  if (isSelf && !selfTag) {
+    c.devline.insertAdjacentHTML("beforeend",
+      '<span class="tag self" title="Perangkat ini">ini</span>');
+  } else if (!isSelf && selfTag) {
+    selfTag.remove();
+  }
+  setText(c.mac, h.mac || "tidak ada");
   const label = h.label || h.name || "";
   setText(c.host, label);
   c.host.title = label ? "Klik untuk mengganti nama" : "Klik untuk memberi nama";
-  setText(c.dev, h.vendor || (label ? "" : "unknown"));
-  c.dev.classList.toggle("sub", !!label);
+  const vd = h.vendor && h.vendor !== "unknown" ? h.vendor : "tak dikenal";
+  setText(c.dev, vd);
+  c.dev.classList.toggle("sub", !!label && !!h.vendor && h.vendor !== "unknown");
   c.dev.title = [
     h.label ? "nama: " + h.label : "",
     h.name ? "terdeteksi: " + h.name + " (" + (h.name_src || "?") + ")" : "",
     h.vendor ? "vendor: " + h.vendor : "",
   ].filter(Boolean).join(" · ");
-  setHTML(c.rx, fmtRate(h.rx_rate) +
-    (h.rx_rate ? `<span class="bar" style="width:${wRx.toFixed(1)}px"></span>` : ""));
-  setHTML(c.tx, fmtRate(h.tx_rate) +
-    (h.tx_rate ? `<span class="bar tx" style="width:${wTx.toFixed(1)}px"></span>` : ""));
+  setHTML(c.rx, fmtRate(h.rx_rate));
+  setHTML(c.tx, fmtRate(h.tx_rate));
   setText(c.tot, fmtBytes(h.total));
   setHTML(c.st, statusHTML(h));
   setHTML(c.act, actHTML(h));
 
   tr.classList.toggle("blocked", S.blocked.has(h.ip));
+  tr.classList.toggle("limited", S.limited.has(h.ip));
   tr.classList.toggle("idle", (h.seen_ago || 0) > 45);
   const want = S.selected.has(h.ip);
   if (c.sel.checked !== want) c.sel.checked = want;
@@ -913,7 +938,7 @@ function render() {
 
   // header meta
   const net = S.net || {};
-  setText($("#netName"), net.ssid || S.iface || "—");
+  setText($("#netName"), net.ssid || S.iface || "tanpa SSID");
   setText($("#netGw"), net.gateway || "");
   $("#statusDot").className = "dot" + (!S.online ? " off" : S.stale ? " stale" : "");
   const badge = $("#modeBadge");
@@ -929,7 +954,7 @@ function render() {
   if (S.scanning) {
     scanBadge.hidden = false;
     scanBadge.className = "badge acc";
-    setText(scanBadge, "scanning…");
+    setText(scanBadge, "memindai…");
     scanBadge.title = "ARP scan sedang berjalan";
   } else if (S.scanResult) {
     scanBadge.hidden = false;
@@ -939,7 +964,7 @@ function render() {
       scanBadge.title = String(S.scanResult.error);
     } else {
       scanBadge.className = "badge";
-      setText(scanBadge, "scan: " + (S.scanResult.found || 0) + " host");
+      setText(scanBadge, (S.scanResult.found || 0) + " host");
       scanBadge.title = "Hasil ARP scan terakhir";
     }
   } else {
@@ -967,20 +992,47 @@ function render() {
   for (const h of S.hosts) { sumRx += h.rx || 0; sumTx += h.tx || 0; }
   setHTML($("#cRx"), fmtRate(S.rxRate));
   setHTML($("#cTx"), fmtRate(S.txRate));
-  setText($("#cRxSub"), sumRx ? fmtBytesPlain(sumRx) + " total" : "—");
-  setText($("#cTxSub"), sumTx ? fmtBytesPlain(sumTx) + " total" : "—");
+  setText($("#cRxSub"), sumRx ? fmtBytesPlain(sumRx) + " total" : "");
+  setText($("#cTxSub"), sumTx ? fmtBytesPlain(sumTx) + " total" : "");
   setText($("#cHosts"), S.hosts.length);
   setText($("#cHostsSub"), S.peerRate
-    ? "LAN " + fmtBytesPlain(S.peerRate) + "/s" : "—");
+    ? "LAN " + fmtBytesPlain(S.peerRate) + "/s" : "");
   const nBlk = S.blocked.size, nLim = S.limited.size;
   setText($("#cBlk"), nBlk);
-  setText($("#cBlkSub"), nLim ? nLim + " limited" : "—");
+  setText($("#cLim"), nLim);
   $("#cardBlk").classList.toggle("hot", nBlk > 0);
   setText($("#cPkts"), num(S.packets));
   setText($("#cPktsSub"), S.dropped ? num(S.dropped) + " drop" : "0 drop");
 
   // counter filter
   const active = S.hosts.filter(h => (h.rx_rate || 0) + (h.tx_rate || 0) > 0).length;
+
+  // Baris jawaban: satu kalimat untuk pembacaan 5 detik, selalu di posisi yang
+  // sama, dan selalu menyebut umur data. Ini yang membedakan "tidak ada
+  // trafik" dari "data berhenti masuk".
+  const age = Math.max(0, (Date.now() - (S.lastFetch || Date.now())) / 1000);
+  let ans;
+  if (!S.online) {
+    ans = "Server tidak menjawab. Angka di bawah adalah data terakhir.";
+  } else if (S.mode !== "capture") {
+    ans = "Mode terbatas: hanya memantau. Blokir dan limit tidak tersedia.";
+  } else if (S.hosts.length === 0) {
+    ans = "Belum ada perangkat terdeteksi. Jalankan Scan ARP.";
+  } else if (nBlk > 0) {
+    ans = nBlk + " perangkat diblokir, " + active + " dari " + S.hosts.length + " aktif.";
+  } else if (nLim > 0) {
+    ans = nLim + " perangkat dibatasi, " + active + " dari " + S.hosts.length + " aktif.";
+  } else if (active === 0) {
+    ans = "Tidak ada yang perlu ditangani. " + S.hosts.length + " perangkat terdaftar, semuanya diam.";
+  } else {
+    ans = "Tidak ada yang perlu ditangani. " + active + " dari " + S.hosts.length +
+          " perangkat aktif, " + fmtBytesPlain(S.totalRate) + "/s.";
+  }
+  const ansEl = $("#answer");
+  setText($("#answerText"), ans);
+  setText($("#answerAge"), age < 1.5 ? "Diperbarui baru saja."
+                                   : "Diperbarui " + Math.round(age) + " dtk lalu.");
+  ansEl.classList.toggle("stale", !S.online || age > 5);
   setText($("#ctAll"), S.hosts.length);
   setText($("#ctActive"), active);
   setText($("#ctBlocked"), nBlk);
@@ -1058,6 +1110,7 @@ function updateFoot(list, top) {
   let rx = 0, tx = 0, sum = 0;
   for (const h of list) { rx += h.rx_rate || 0; tx += h.tx_rate || 0; sum += h.total || 0; }
   setText($("#footCount"), list.length + " host terlihat");
+
   setText($("#footRx"), fmtBytesPlain(rx) + "/s");
   setText($("#footTx"), fmtBytesPlain(tx) + "/s");
   setText($("#footSum"), fmtBytesPlain(sum));
@@ -1355,7 +1408,7 @@ async function poll() {
     if (S.online) {
       S.online = false;
       render();
-      toast("Server tidak merespons — mencoba lagi…", "err");
+      toast("Server tidak merespons, mencoba lagi…", "err");
     }
   }
 }
@@ -1861,8 +1914,9 @@ class WebState:
                 # balasan download bypass laptop sehingga limit hanya
                 # berlaku untuk arah upload.
                 if vmac and not self.spoofer.router_spoofable(ip, vmac):
-                    note = ("Router menolak ARP spoof: limit hanya berlaku "
-                            "untuk upload. Gunakan Blokir untuk membatasi total.")
+                    note = ("Router menolak ARP spoof, jadi yang dibatasi "
+                            "hanya upload; download tetap jalan. Pakai Blokir "
+                            "kalau ingin membatasi total.")
                     self.notes[ip] = note
                     res[ip]["note"] = note
             except Exception as exc:

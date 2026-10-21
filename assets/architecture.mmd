@@ -1,12 +1,12 @@
 flowchart LR
-    subgraph LAN["LAPIS 1 · Perangkat di LAN — semua lewat WiFi"]
+    subgraph LAN["LAPIS 1 · Perangkat di LAN: semua lewat WiFi"]
         HP["HP"]
         LAP["Laptop lain"]
         TV["Smart TV"]
         DST["dst."]
     end
 
-    subgraph BOX["LAPIS 2 · Laptop Linux — netcut-linux berjalan di sini"]
+    subgraph BOX["LAPIS 2 · Laptop Linux: netcut-linux berjalan di sini"]
         SPOOF["ARP spoof<br/>arahkan gateway korban<br/>ke laptop ini"]
         SNIF["Sniffer<br/>raw AF_PACKET capture<br/>hitung byte per host"]
         NFT["nftables<br/>Blokir → drop<br/>Limit → rate-limit"]

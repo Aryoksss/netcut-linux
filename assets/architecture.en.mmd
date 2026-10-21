@@ -1,12 +1,12 @@
 flowchart LR
-    subgraph LAN["LAYER 1 · Devices on the LAN — all over WiFi"]
+    subgraph LAN["LAYER 1 · Devices on the LAN: all over WiFi"]
         HP["HP"]
         LAP["Another laptop"]
         TV["Smart TV"]
         DST["dst."]
     end
 
-    subgraph BOX["LAYER 2 · Linux laptop — netcut-linux runs here"]
+    subgraph BOX["LAYER 2 · Linux laptop: netcut-linux runs here"]
         SPOOF["ARP spoof<br/>point the victim's gateway<br/>at this laptop"]
         SNIF["Sniffer<br/>raw AF_PACKET capture<br/>count bytes per host"]
         NFT["nftables<br/>Block → drop<br/>Limit → rate-limit"]

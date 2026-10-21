@@ -7,12 +7,12 @@
 [![Platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](#syarat)
 
 Monitor bandwidth per-host & kontrol trafik untuk jaringan lokal sendiri.
-Terinspirasi dari **NetCut** untuk Windows — interface dan perilakunya serupa,
+Terinspirasi dari **NetCut** untuk Windows, interface dan perilakunya serupa,
 namun diimplementasikan ulang dengan tool Linux native.
 
 [English](README.md) · **Bahasa Indonesia**
 
-![netcut-linux — monitoring bandwidth per host dan kontrol trafik](assets/hero.png)
+![netcut-linux, monitoring bandwidth per host dan kontrol trafik](assets/hero.png)
 
 > **Pakai hanya di perangkat dan jaringan milik sendiri.** Blokir dan limit
 > bekerja lewat ARP spoofing, teknik MITM yang bisa disalahgunakan. Lihat
@@ -26,19 +26,19 @@ namun diimplementasikan ulang dengan tool Linux native.
 ## Fitur
 
 - **Monitoring real-time** per host: IP, MAC, vendor, download, upload, total
-- **Nama perangkat** — dari DHCP, mDNS, NetBIOS, atau reverse DNS; klik namanya
+- **Nama perangkat**: dari DHCP, mDNS, NetBIOS, atau reverse DNS; klik namanya
   untuk memberi label sendiri (disimpan lokal)
-- **Blokir device** — memutus akses internet sebuah perangkat di jaringan
+- **Blokir device**: memutus akses internet sebuah perangkat di jaringan
 - **Batasi bandwidth** per device (kbps)
-- **Aksi massal** — pilih banyak perangkat sekaligus, lalu blokir/buka/limit
+- **Aksi massal**: pilih banyak perangkat sekaligus, lalu blokir/buka/limit
   semuanya dalam satu klik
-- **Cari & filter** — pencarian IP/MAC/perangkat + filter Aktif/Diblokir/Limited
+- **Cari & filter**: pencarian IP/MAC/perangkat + filter Aktif/Diblokir/Limited
 - **Lookup vendor** dari database OUI lokal
 - **Discovery host** via ARP scan + cache ARP kernel
 - **Web dashboard** dengan REST API JSON
 - **Tema gelap & terang** (dark-first, tombol ganti + ingat pilihan)
 - **Aplikasi Linux native**: launcher, entry app menu, system tray
-- **Deteksi otomatis perpindahan WiFi** — scan ulang saat jaringan berganti
+- **Deteksi otomatis perpindahan WiFi**: scan ulang saat jaringan berganti
 
 Dashboard-nya, dijalankan dengan data demo:
 
@@ -118,17 +118,17 @@ hosts : 3                  <- perangkat lain di jaringan itu
   Desktop (macOS/Windows) menunjuk jaringan VM, bukan LAN Anda, sehingga ARP
   spoofing tidak sampai ke jaringan sebenarnya. Di platform itu container
   maupun mode native sama-sama tidak bisa mengontrol perangkat lain.
-- **`--network=host`** dan **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — ARP
+- **`--network=host`** dan **`--cap-add=NET_RAW --cap-add=NET_ADMIN`**: ARP
   spoofing dan relay harus bekerja pada interface host yang asli, dan aturan
   nftables butuh `NET_ADMIN`. Tanpa host networking, container ada di network
   namespace sendiri dan tidak melihat LAN sama sekali.
-- **User ada di grup `docker`** — kalau belum, hasilnya `permission denied`
+- **User ada di grup `docker`**: kalau belum, hasilnya `permission denied`
   saat menghubungi Docker daemon. Perbaiki dengan
   `sudo usermod -aG docker $USER` lalu logout-login.
 
 Satu konsekuensi yang perlu diketahui: dengan `--network=host` container
 berbagi network namespace dengan host, jadi aturan nftables-nya ikut berlaku
-untuk host. Itu memang dibutuhkan — tanpa itu trafik device lain tidak bisa
+untuk host. Itu memang dibutuhkan, tanpa itu trafik device lain tidak bisa
 diintervensi.
 
 ### Native (launcher)
@@ -226,7 +226,7 @@ sudo ./netcut.py --web --web-port 8080
 - **Multi-select**: centang atau klik baris untuk memilih beberapa perangkat,
   lalu pakai bilah aksi massal untuk blokir/buka/limit sekaligus
 - Tombol **Blokir** / **Buka** dan **Limit** / **Buka limit** per baris
-- Dialog limit dengan preset (128/256/512/1024/2048 kbps) — bukan `prompt()`
+- Dialog limit dengan preset (128/256/512/1024/2048 kbps), bukan `prompt()`
 - Kartu ringkasan: total download, upload, host aktif, jumlah diblokir, paket
 - Baris total di kaki tabel, dan baris idle (>45s) diredupkan
 - **Scan ARP** (background, tidak membekukan UI)
@@ -237,7 +237,7 @@ sudo ./netcut.py --web --web-port 8080
 
 ![Mode blokir](assets/blocked.png)
 
-**Aksi massal** — pilih beberapa perangkat, lalu blokir sekaligus:
+**Aksi massal**: pilih beberapa perangkat, lalu blokir sekaligus:
 
 ![Aksi massal](assets/bulk.png)
 
@@ -261,24 +261,24 @@ Tema terang (tombol sun di header):
 
 Nama diambil dari sumber pertama yang menjawab, berurutan:
 
-1. **DHCP** — opsi hostname (12) dan vendor class (60) dari permintaan DHCP
+1. **DHCP**: opsi hostname (12) dan vendor class (60) dari permintaan DHCP
    perangkat itu sendiri. Ini sumber utama untuk HP, sekaligus memberi tahu
    jenis perangkatnya (mis. `android-dhcp-14`).
-2. **mDNS** — query PTR balik, dijawab perangkat Apple/Android/Linux.
-3. **NetBIOS** — node status query di UDP 137, dijawab mesin Windows.
-4. **Reverse DNS** — PTR lewat resolver sistem, kalau router mendaftarkan nama
+2. **mDNS**: query PTR balik, dijawab perangkat Apple/Android/Linux.
+3. **NetBIOS**: node status query di UDP 137, dijawab mesin Windows.
+4. **Reverse DNS**: PTR lewat resolver sistem, kalau router mendaftarkan nama
    DHCP.
 
 Perangkat yang tidak menjawab satu pun (sebagian HP memang diam) tetap tampil
 dengan IP, MAC, dan vendor. Klik nama perangkat di dashboard untuk memberi
-label sendiri — disimpan lokal dan tetap ada setelah restart.
+label sendiri, disimpan lokal dan tetap ada setelah restart.
 
 ### REST API
 
 | Endpoint | Method | Body | Fungsi |
 |---|---|---|---|
-| `/api/hosts` | GET | — | snapshot host + rate |
-| `/api/rules` | GET | — | daftar aturan nftables aktif |
+| `/api/hosts` | GET |, | snapshot host + rate |
+| `/api/rules` | GET |, | daftar aturan nftables aktif |
 | `/api/block` | POST | `{"ip":"..."}` | blokir host |
 | `/api/unblock` | POST | `{"ip":"..."}` | lepas blokir |
 | `/api/limit` | POST | `{"ip":"...","kbps":512}` | batasi bandwidth |
@@ -294,16 +294,16 @@ Ikon di system tray menampilkan tooltip live: `netcut - <SSID>: <jumlah> host`
 (plus jumlah yang diblokir/limited). Ikon berubah jadi attention ketika ada
 perangkat yang diblokir. Menu klik-kanan:
 
-- **Buka Dashboard** — buka web GUI di browser
-- **Scan ARP** — scan subnet aktif
-- **Blokir cepat…** — dialog checklist zenity, pilih banyak perangkat lalu
+- **Buka Dashboard**: buka web GUI di browser
+- **Scan ARP**: scan subnet aktif
+- **Blokir cepat…**: dialog checklist zenity, pilih banyak perangkat lalu
   blokir sekaligus
-- **Buka blokir / limit…** — dialog checklist untuk melepas blokir/limit
-- **Aturan nftables** — tampilkan rule aktif
-- **Lepas Semua Blokir** — cabut blokir & limit
-- **Keluar** — hentikan
+- **Buka blokir / limit…**: dialog checklist untuk melepas blokir/limit
+- **Aturan nftables**: tampilkan rule aktif
+- **Lepas Semua Blokir**: cabut blokir & limit
+- **Keluar**: hentikan
 
-Tray memakai `AppIndicator3` (protokol StatusNotifier) — di Wayland tray hanya
+Tray memakai `AppIndicator3` (protokol StatusNotifier), di Wayland tray hanya
 bisa lewat protokol itu. Notifikasi desktop muncul saat jaringan berubah atau
 ada host diblokir/dibatasi.
 
@@ -322,14 +322,14 @@ Mod+Shift+N hotkey-overlay-title="NetCut" {
 <!-- diagram:architecture -->
 ```mermaid
 flowchart LR
-    subgraph LAN["LAPIS 1 · Perangkat di LAN — semua lewat WiFi"]
+    subgraph LAN["LAPIS 1 · Perangkat di LAN: semua lewat WiFi"]
         HP["HP"]
         LAP["Laptop lain"]
         TV["Smart TV"]
         DST["dst."]
     end
 
-    subgraph BOX["LAPIS 2 · Laptop Linux — netcut-linux berjalan di sini"]
+    subgraph BOX["LAPIS 2 · Laptop Linux: netcut-linux berjalan di sini"]
         SPOOF["ARP spoof<br/>arahkan gateway korban<br/>ke laptop ini"]
         SNIF["Sniffer<br/>raw AF_PACKET capture<br/>hitung byte per host"]
         NFT["nftables<br/>Blokir → drop<br/>Limit → rate-limit"]
@@ -381,17 +381,17 @@ flowchart LR
 Agar aturan di laptop bisa menyentuh trafik device lain, trafiknya perlu
 melewati laptop lebih dulu. Hal itu dilakukan lewat ARP spoofing: korban diberi
 tahu bahwa gateway berada di MAC laptop, sehingga trafiknya dialihkan ke
-laptop — lalu baru bisa di-drop atau di-rate-limit di sini.
+laptop, lalu baru bisa di-drop atau di-rate-limit di sini.
 
-**Alur paket** — perangkat → router adalah jalur normal. Setelah ARP spoof:
+**Alur paket**: perangkat → router adalah jalur normal. Setelah ARP spoof:
 perangkat → laptop, sniffer menghitung byte, nftables memutuskan, relay
 meneruskan ke gateway.
 
-**Mode operasi** — `capture` memberi monitoring dan kontrol penuh;
+**Mode operasi**: `capture` memberi monitoring dan kontrol penuh;
 `fallback-no-root` hanya total per interface. Mode aktif tampil di header
 dashboard, dan tool scan ulang otomatis saat pindah WiFi.
 
-**Hak akses** — `CAP_NET_RAW` untuk capture paket, `CAP_NET_ADMIN` untuk
+**Hak akses**: `CAP_NET_RAW` untuk capture paket, `CAP_NET_ADMIN` untuk
 aturan nftables. Jalur container menyediakan keduanya; jalur native butuh
 `sudo` atau capability tersebut.
 
@@ -404,7 +404,7 @@ aturan nftables. Jalur container menyediakan keduanya; jalur native butuh
 
 - **Router dengan proteksi ARP spoofing** (mis. beberapa router ISP) menolak
   spoofing ke sisi router. Akibatnya balasan download dari internet dikirim
-  langsung ke device, melewati laptop — sehingga **limit hanya berlaku untuk
+  langsung ke device, melewati laptop, sehingga **limit hanya berlaku untuk
   arah upload** di router seperti itu. Tool mendeteksi hal ini otomatis dan
   menampilkan badge peringatan. Untuk membatasi total, gunakan **Blokir**.
 
@@ -413,7 +413,7 @@ aturan nftables. Jalur container menyediakan keduanya; jalur native butuh
 
 - **Firewall host yang membuang trafik forward membuat Limit tidak berlaku.**
   Di Linux, verdict `accept` di satu rantai nftables **tidak** menghentikan
-  hook — rantai lain yang lebih lambat tetap jalan. Kalau host punya rantai
+  hook, rantai lain yang lebih lambat tetap jalan. Kalau host punya rantai
   `forward` dengan `policy drop` (default Ubuntu & Debian), trafik korban
   yang dialihkan ke laptop tetap dibuang, sehingga **Limit** jadi seperti
   **Blokir**. `netcut --doctor` mendeteksi kondisi ini, dan dashboard
@@ -455,7 +455,7 @@ python3 tools/make_screenshots.py   # screenshot README (firefox + Pillow)
 python3 tools/make_hero.py          # hero banner (playwright + chromium)
 ```
 
-Diagram arsitektur bukan gambar, tapi **Mermaid** — GitHub merendernya
+Diagram arsitektur bukan gambar, tapi **Mermaid**: GitHub merendernya
 langsung di README sehingga tetap tajam dan bisa dicari. Sumbernya ada di
 `assets/architecture.mmd` (Indonesia) dan `assets/architecture.en.mmd`
 (Inggris). Karena README harus berisi bloknya secara inline, sinkronisasi
@@ -474,13 +474,26 @@ curl -sL https://standards-oui.ieee.org/oui/oui.csv -o /tmp/oui.csv
 python3 tools/oui_csv_to_hwdata.py /tmp/oui.csv assets/oui.txt
 ```
 
+## Desain
+
+Dashboard punya arah tertulis di [DESIGN.md](DESIGN.md): siapa yang membukanya, satu
+pertanyaan yang harus dijawab layar, palet dengan rasio kontras terukur, aturan
+kepadatan, dan alasan setiap keputusan. UI dibangun di atas arah itu lalu disaring
+dari tanda-tanda desain hasil generate: tanpa baris kartu KPI, tanpa titik status
+berpendar, tanpa huruf kapital berjarak lebar, tanpa kontrol berbentuk pil, satu aksen
+di tiga tempat.
+
+Layar dibuka dengan satu kalimat, bukan setumpuk angka: berapa perangkat diblokir atau
+dibatasi, berapa yang aktif, dan berapa umur datanya. Kalau collector mati, kalimat itu
+mengatakannya, bukan menampilkan angka nol yang terlihat tenang.
+
 ## Kontribusi
 
 Lihat [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Lisensi
 
-MIT — lihat [LICENSE](LICENSE).
+MIT, lihat [LICENSE](LICENSE).
 
 > ARP spoofing adalah teknik MITM yang bisa mengarah ke penyalahgunaan.
 > Gunakan hanya untuk perangkat milik sendiri di jaringan sendiri.

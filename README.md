@@ -7,12 +7,12 @@
 [![Platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](#requirements)
 
 Per-host bandwidth monitoring and traffic control for your own local network.
-Inspired by **NetCut** for Windows — the interface and behaviour are similar,
+Inspired by **NetCut** for Windows, the interface and behaviour are similar,
 but it is reimplemented with native Linux tooling.
 
 **English** · [Bahasa Indonesia](README.id.md)
 
-![netcut-linux — per-host bandwidth monitoring and traffic control](assets/hero.png)
+![netcut-linux, per-host bandwidth monitoring and traffic control](assets/hero.png)
 
 > **Use it on devices and networks you own.** Blocking and limiting work
 > through ARP spoofing, a MITM technique that can be abused. See
@@ -26,19 +26,19 @@ but it is reimplemented with native Linux tooling.
 ## Features
 
 - **Real-time monitoring** per host: IP, MAC, vendor, download, upload, total
-- **Device names** — from DHCP, mDNS, NetBIOS, or reverse DNS; click a name
+- **Device names**: from DHCP, mDNS, NetBIOS, or reverse DNS; click a name
   to give it your own label (saved locally)
-- **Block a device** — cut a device's internet access on the network
+- **Block a device**: cut a device's internet access on the network
 - **Bandwidth limiting** per device (kbps)
-- **Bulk actions** — select many devices at once, then block, unblock or limit
+- **Bulk actions**: select many devices at once, then block, unblock or limit
   them all in one go
-- **Search & filter** — by IP/MAC/vendor, plus Active/Blocked/Limited filters
+- **Search & filter**: by IP/MAC/vendor, plus Active/Blocked/Limited filters
 - **Vendor lookup** from the local OUI database
 - **Host discovery** via ARP scan + kernel ARP cache
 - **Web dashboard** with a JSON REST API
 - **Dark & light themes** (dark-first, with a toggle that remembers your pick)
 - **Native Linux app**: launcher, app menu entry, system tray
-- **Automatic WiFi change detection** — rescan when the network changes
+- **Automatic WiFi change detection**: rescan when the network changes
 
 The dashboard, running against demo data:
 
@@ -93,7 +93,7 @@ cd netcut-linux
 docker compose up -d --build
 ```
 
-The image is fully self-contained — Python, scapy, nftables and the OUI
+The image is fully self-contained, Python, scapy, nftables and the OUI
 database are baked in, so no host filesystem mounts are needed. The first
 build downloads Debian packages (~1–2 minutes without cache).
 
@@ -118,17 +118,17 @@ hosts : 3                  <- other devices on that network
   on Docker Desktop (macOS/Windows) points at the VM's network instead of your
   LAN, so ARP spoofing never reaches the real network. On those platforms
   neither the container nor the native mode can control other devices.
-- **`--network=host`** and **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — ARP
+- **`--network=host`** and **`--cap-add=NET_RAW --cap-add=NET_ADMIN`**: ARP
   spoofing and the relay must run on the host's real interfaces, and the
   nftables rules need `NET_ADMIN`. Without host networking the container sits
   in its own network namespace and sees no LAN at all.
-- **Your user in the `docker` group** — otherwise you get `permission denied`
+- **Your user in the `docker` group**: otherwise you get `permission denied`
   talking to the Docker daemon. Fix with `sudo usermod -aG docker $USER`, then
   log out and back in.
 
 One consequence worth knowing: with `--network=host` the container shares the
 host's network namespace, so its nftables rules apply to the host too. That is
-required — without it, other devices' traffic cannot be intercepted.
+required, without it, other devices' traffic cannot be intercepted.
 
 ### Native (launcher)
 
@@ -220,7 +220,7 @@ sudo ./netcut.py --web --web-port 8080
 ```
 
 - Live per-host table: IP, MAC, vendor, download, upload, total
-- Sort by column (click a header) — entirely client side, no server round-trip
+- Sort by column (click a header), entirely client side, no server round-trip
 - **Search** by IP/MAC/vendor, plus **filters** for All / Active / Blocked / Limited
 - **Multi-select**: tick a checkbox or click a row to select several devices,
   then use the bulk action bar to block, unblock or limit them all at once
@@ -236,7 +236,7 @@ sudo ./netcut.py --web --web-port 8080
 
 ![Blocked device](assets/blocked.png)
 
-**Bulk actions** — select several devices, then block them all at once:
+**Bulk actions**: select several devices, then block them all at once:
 
 ![Bulk actions](assets/bulk.png)
 
@@ -260,24 +260,24 @@ Light theme (the sun button in the header):
 
 A host is labelled from the first source that answers, in this order:
 
-1. **DHCP** — hostname option (12) and vendor class (60) from the device's own
+1. **DHCP**: hostname option (12) and vendor class (60) from the device's own
    DHCP request. This is the usual source for phones, and it also catches the
    device type (e.g. `android-dhcp-14`).
-2. **mDNS** — reverse PTR query, answered by Apple/Android/Linux devices.
-3. **NetBIOS** — node status query on UDP 137, answered by Windows machines.
-4. **Reverse DNS** — PTR through the system resolver, when your router
+2. **mDNS**: reverse PTR query, answered by Apple/Android/Linux devices.
+3. **NetBIOS**: node status query on UDP 137, answered by Windows machines.
+4. **Reverse DNS**: PTR through the system resolver, when your router
    registers DHCP names.
 
 Devices that answer none of these (some phones keep quiet) still show IP, MAC
 and vendor. Click the device name in the dashboard to give it a label of your
-own — it is stored locally and survives restarts.
+own, it is stored locally and survives restarts.
 
 ### REST API
 
 | Endpoint | Method | Body | Purpose |
 |---|---|---|---|
-| `/api/hosts` | GET | — | host snapshot + rates |
-| `/api/rules` | GET | — | active nftables rules |
+| `/api/hosts` | GET |, | host snapshot + rates |
+| `/api/rules` | GET |, | active nftables rules |
 | `/api/block` | POST | `{"ip":"..."}` | block a host |
 | `/api/unblock` | POST | `{"ip":"..."}` | unblock a host |
 | `/api/limit` | POST | `{"ip":"...","kbps":512}` | limit bandwidth |
@@ -293,15 +293,15 @@ The tray icon shows a live tooltip: `netcut - <SSID>: <host count>` (plus how
 many devices are blocked or limited). The icon switches to an attention state
 while devices are blocked. Right-click menu:
 
-- **Open Dashboard** — open the web GUI in your browser
-- **ARP Scan** — scan the active subnet
-- **Quick block…** — a zenity checklist, pick many devices and block them at once
-- **Unblock / remove limit…** — a checklist for lifting blocks and limits
-- **nftables Rules** — show the active ruleset
-- **Remove All Blocks** — clear blocks & limits
-- **Quit** — stop
+- **Open Dashboard**: open the web GUI in your browser
+- **ARP Scan**: scan the active subnet
+- **Quick block…**: a zenity checklist, pick many devices and block them at once
+- **Unblock / remove limit…**: a checklist for lifting blocks and limits
+- **nftables Rules**: show the active ruleset
+- **Remove All Blocks**: clear blocks & limits
+- **Quit**: stop
 
-The tray uses `AppIndicator3` (StatusNotifier protocol) — on Wayland that is
+The tray uses `AppIndicator3` (StatusNotifier protocol), on Wayland that is
 the only way to get a tray icon. Desktop notifications appear when the network
 changes or a host is blocked/limited.
 
@@ -320,14 +320,14 @@ Mod+Shift+N hotkey-overlay-title="NetCut" {
 <!-- diagram:architecture -->
 ```mermaid
 flowchart LR
-    subgraph LAN["LAYER 1 · Devices on the LAN — all over WiFi"]
+    subgraph LAN["LAYER 1 · Devices on the LAN: all over WiFi"]
         HP["HP"]
         LAP["Another laptop"]
         TV["Smart TV"]
         DST["dst."]
     end
 
-    subgraph BOX["LAYER 2 · Linux laptop — netcut-linux runs here"]
+    subgraph BOX["LAYER 2 · Linux laptop: netcut-linux runs here"]
         SPOOF["ARP spoof<br/>point the victim's gateway<br/>at this laptop"]
         SNIF["Sniffer<br/>raw AF_PACKET capture<br/>count bytes per host"]
         NFT["nftables<br/>Block → drop<br/>Limit → rate-limit"]
@@ -379,19 +379,19 @@ flowchart LR
 For rules on your laptop to affect another device's traffic, that traffic has
 to pass through the laptop first. That is achieved with ARP spoofing: the
 victim is told the gateway lives at the laptop's MAC, so its traffic is
-redirected to the laptop — and only then can it be dropped or rate-limited
+redirected to the laptop, and only then can it be dropped or rate-limited
 here.
 
-**Packet flow** — devices → router is the normal path. After the ARP spoof:
+**Packet flow**: devices → router is the normal path. After the ARP spoof:
 devices → laptop, the sniffer counts bytes, nftables decides, the relay
 forwards to the gateway.
 
-**Operating modes** — `capture` gives full monitoring and control;
+**Operating modes**: `capture` gives full monitoring and control;
 `fallback-no-root` gives per-interface totals only. The active mode is shown
 in the dashboard header, and the tool rescans automatically when the WiFi
 changes.
 
-**Privileges** — `CAP_NET_RAW` for packet capture, `CAP_NET_ADMIN` for the
+**Privileges**: `CAP_NET_RAW` for packet capture, `CAP_NET_ADMIN` for the
 nftables rules. The container path supplies both; the native path needs
 `sudo` or those capabilities.
 
@@ -405,7 +405,7 @@ nftables rules. The container path supplies both; the native path needs
 
 - **Routers with ARP spoofing protection** (e.g. some ISP routers) reject
   spoofing towards the router side. Download replies from the internet are then
-  sent straight to the device, bypassing the laptop — so **limiting only
+  sent straight to the device, bypassing the laptop, so **limiting only
   applies to the upload direction** on such routers. The tool detects this
   automatically and shows a warning badge. To cap total traffic, use **Block**.
 
@@ -414,7 +414,7 @@ nftables rules. The container path supplies both; the native path needs
 
 - **A host firewall that drops forwarded traffic makes limiting ineffective.**
   In Linux, an `accept` verdict in one nftables chain does **not** stop the
-  hook — later chains still run. If the host has a `forward` chain with
+  hook, later chains still run. If the host has a `forward` chain with
   `policy drop` (the default on Ubuntu & Debian), the victim's diverted
   traffic is still discarded, so **Limit** behaves like **Block**.
   `netcut --doctor` detects this, and the dashboard shows a warning banner
@@ -455,7 +455,7 @@ python3 tools/make_screenshots.py   # README screenshots (firefox + Pillow)
 python3 tools/make_hero.py          # hero banner (playwright + chromium)
 ```
 
-The architecture diagram is not an image but **Mermaid** — GitHub renders it
+The architecture diagram is not an image but **Mermaid**: GitHub renders it
 directly inside the README, so it stays sharp at any size and is searchable.
 Its source lives in `assets/architecture.mmd` (Indonesian) and
 `assets/architecture.en.mmd` (English). Because the README has to inline the
@@ -474,13 +474,25 @@ curl -sL https://standards-oui.ieee.org/oui/oui.csv -o /tmp/oui.csv
 python3 tools/oui_csv_to_hwdata.py /tmp/oui.csv assets/oui.txt
 ```
 
+## Design
+
+The dashboard has a written direction in [DESIGN.md](DESIGN.md): who opens it, the one
+question the screen answers, the palette with measured contrast ratios, the density
+rules, and the reason for every decision. The UI is built against that direction and
+then filtered for the usual generated-design tells: no KPI card row, no glowing status
+dot, no uppercase tracking, no pill controls, one accent used in three places.
+
+The screen opens with a sentence rather than a number: how many devices are blocked or
+limited, how many are active, and how old the data is. If the collector dies, that
+sentence says so instead of showing a calm zero.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
 
 > ARP spoofing is a MITM technique that can be abused.
 > Use it only on devices you own, on your own network.

@@ -244,7 +244,7 @@ class TrayIcon:
 
         # baris info di menu
         rate = fmt_rate((snap.get("rx_rate") or 0) + (snap.get("tx_rate") or 0))
-        self._set_info("iNet", net.get("ssid") or net.get("iface") or "—")
+        self._set_info("iNet", net.get("ssid") or net.get("iface") or "tidak ada")
         self._set_info("iStat", f"{n} host · {rate}"
                                 + (f" · {blocked} diblokir" if blocked else ""))
 
@@ -266,8 +266,8 @@ class TrayIcon:
         menu = Gtk.Menu()
 
         # baris informasi (tidak bisa diklik)
-        self._items["iNet"] = self._info_item(menu, "—")
-        self._items["iStat"] = self._info_item(menu, "—")
+        self._items["iNet"] = self._info_item(menu, "memuat")
+        self._items["iStat"] = self._info_item(menu, "memuat")
         menu.append(Gtk.SeparatorMenuItem())
 
         item_dash = Gtk.MenuItem.new_with_label("Buka Dashboard")
