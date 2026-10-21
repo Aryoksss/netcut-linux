@@ -28,8 +28,57 @@ PORT = int(os.environ.get("NETCUT_PORT", "8080"))
 BASE = f"http://127.0.0.1:{PORT}"
 
 
+# ---------------------------------------------------------------- output
+class C:
+    """Warna ANSI. Nonaktif kalau stdout bukan tty atau NO_COLOR diset."""
+
+    _ok = "\033[32m"
+    _err = "\033[31m"
+    _dim = "\033[2m"
+    _b = "\033[1m"
+    _off = "\033[0m"
+
+    @classmethod
+    def _on(cls) -> bool:
+        return sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+
+    @classmethod
+    def dim(cls, s: str) -> str:
+        return f"{cls._dim}{s}{cls._off}" if cls._on() else s
+
+    @classmethod
+    def bold(cls, s: str) -> str:
+        return f"{cls._b}{s}{cls._off}" if cls._on() else s
+
+    @classmethod
+    def green(cls, s: str) -> str:
+        return f"{cls._ok}{s}{cls._off}" if cls._on() else s
+
+    @classmethod
+    def red(cls, s: str) -> str:
+        return f"{cls._err}{s}{cls._off}" if cls._on() else s
+
+
 def log(msg: str) -> None:
-    print(f"[netcut-app] {msg}", flush=True)
+    print(f"{C.dim('[netcut]')} {msg}", flush=True)
+
+
+USAGE = f"""\
+{C.bold('netcut-linux')} - monitor bandwidth per host & kontrol trafik jaringan lokal
+
+{C.bold('Pakai:')} netcut [opsi]
+
+  {C.bold('--tray')}            jalankan hanya di system tray (tanpa buka browser)
+  {C.bold('--status')}          cek status server (URL, mode, jumlah host)
+  {C.bold('--stop')}            hentikan server
+  {C.bold('--port')} PORT       porta web GUI (default {PORT}, atau env NETCUT_PORT)
+  {C.bold('--no-tray')}         jalankan server tanpa ikon system tray
+  {C.bold('-h, --help')}        tampilkan bantuan ini
+
+Dashboard web  : {C.bold(BASE)}
+Aturan nft    : sudo nft list table inet netcut
+"""
+
 
 
 # ---------------------------------------------------------------- server
@@ -319,25 +368,76 @@ def _kill_other_instances() -> None:
 def main() -> int:
     args = sys.argv[1:]
 
+    if "-h" in args or "--help" in args:
+        print(USAGE)
+        return 0
+
+    # --port bisa muncul di mana saja dalam argumen
+    if "--port" in args:
+        try:
+            idx = args.index("--port")
+            globals()["PORT"] = int(args[idx + 1])
+            globals()["BASE"] = f"http://127.0.0.1:{globals()['PORT']}"
+        except (IndexError, ValueError):
+            print(C.red("nilai --port tidak valid"))
+            return 2
+
     if "--stop" in args:
         srv = Server()
         if srv.is_running():
             srv.stop()
-            print("server dihentikan")
+            print(C.green("server dihentikan"))
         else:
-            print("server tidak berjalan")
+            print(C.dim("server tidak berjalan"))
         # matikan juga proses app lain (tray) yang sedang jalan
         _kill_other_instances()
         return 0
 
     if "--status" in args:
         srv = Server()
-        print("running" if srv.is_running() else "stopped")
-        return 0
+        state = srv._load_state()
+        running = srv.is_running()
+        mode = state.get("mode", "?")
+        print(f"{C.bold('netcut-linux')}  {C.dim('status')}")
+        print(f"  server     : {C.green('running') if running else C.red('stopped')}"
+              f"  {C.dim('(' + mode + ')')}")
+        print(f"  dashboard  : {BASE}")
+        if running:
+            snap = snapshot()
+            if "hosts" in snap:
+                hosts = len(snap.get("hosts", []))
+                blk = len(snap.get("blocked", []))
+                lim = len(snap.get("limited", {}))
+                net = snap.get("net", {})
+                print(f"  jaringan   : {net.get('ssid') or net.get('iface', '?')}"
+                      f"  {C.dim(str(net.get('gateway', '')))}")
+                print(f"  host       : {hosts} terlihat"
+                      + (f", {blk} diblokir" if blk else "")
+                      + (f", {lim} limited" if lim else ""))
+                print(f"  interface  : {snap.get('iface', '?')}"
+                      f"  {C.dim('mode ' + str(snap.get('mode', '?')))}")
+        return 0 if running else 1
 
     server = Server()
+    tray_only = "--tray" in args
+    no_tray = "--no-tray" in args
     try:
-        return run_gui(server, tray_only="--tray" in args)
+        if no_tray:
+            if not server.start():
+                log("gagal menjalankan server web")
+                notify("netcut", "Gagal menjalankan web GUI", "dialog-error")
+                return 1
+            print(f"{C.green('netcut-linux')} berjalan di {C.bold(BASE)}"
+                  f"  {C.dim('(Ctrl-C untuk berhenti)')}")
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print()
+            finally:
+                server.stop()
+            return 0
+        return run_gui(server, tray_only=tray_only)
     except KeyboardInterrupt:
         server.stop()
     return 0

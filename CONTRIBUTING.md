@@ -15,7 +15,24 @@ sudo apt-get install python3-scapy nftables   # Debian/Ubuntu
 # test
 python3 test_parser.py       # unit test, tanpa root
 sudo python3 test_suite.py   # end-to-end, butuh root + CAP_NET_ADMIN
+python3 tools/ui_test.py --serve   # test UI dashboard, butuh playwright
 ```
+
+## Struktur UI
+
+Dashboard web hidup di satu file: `webgui.py` berisi `PAGE` (HTML + CSS + JS)
+yang di-*inject* ke browser sebagai satu string. Data awal disisipkan lewat
+placeholder `__INIT_DATA__` supaya halaman tidak flash kosong.
+
+Konvensi yang perlu dijaga:
+
+- Tema lewat atribut `data-theme` di `<html>` (`dark` | `light`), token warna
+  ada di blok CSS `:root` — jangan pakai warna literal di luar token itu
+- Tabel dirender ulang **in-place** (baris di-*reuse* lewat `S.rows`), bukan
+  di-*rebuild* tiap detik, supaya scroll position tidak loncat
+- Pencarian, filter, dan sortir berjalan **di sisi client** — jangan kirim
+  request server untuk itu
+- Ada `tools/ui_test.py` yang menguji interaksi utama; jalankan sebelum push
 
 ## Gaya kode
 

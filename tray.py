@@ -43,12 +43,28 @@ def api(path: str, body: dict | None = None) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
-def notify(title: str, body: str) -> None:
+def notify(title: str, body: str, icon: str = "network-wireless") -> None:
     try:
-        subprocess.run(["notify-send", "-a", "netcut", title, body],
+        subprocess.run(["notify-send", "-a", "netcut", "-i", icon, title, body],
                        capture_output=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
         pass
+
+
+def fmt_rate(bps: float) -> str:
+    bps = bps or 0
+    for unit, div in (("GB/s", 1e9), ("MB/s", 1e6), ("KB/s", 1e3)):
+        if bps >= div:
+            return f"{bps / div:.1f} {unit}"
+    return f"{bps:.0f} B/s"
+
+
+def zenity_available() -> bool:
+    try:
+        r = subprocess.run(["which", "zenity"], capture_output=True, timeout=5)
+        return r.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 class TrayIcon:
@@ -58,6 +74,10 @@ class TrayIcon:
         self.indicator = None
         self._last_net = None
         self._last_blocked = set()
+        self._last_limited = set()
+        self._online = True
+        self._snap: dict = {}
+        self._items: dict = {}
 
     # -- menu actions --------------------------------------------------
     def act_scan(self, *_a):
@@ -72,12 +92,15 @@ class TrayIcon:
         _show_text("Aturan nftables", rules)
 
     def act_unblock_all(self, *_a):
-        snap = api("/api/hosts")
+        snap = self._snap or api("/api/hosts")
+        n = 0
         for ip in snap.get("blocked", []):
-            api("/api/unblock", {"ip": ip})
+            if api("/api/unblock", {"ip": ip}).get("ok"):
+                n += 1
         for ip in snap.get("limited", {}):
-            api("/api/unlimit", {"ip": ip})
-        notify("netcut", "Semua blokir/limit dilepas")
+            if api("/api/unlimit", {"ip": ip}).get("ok"):
+                n += 1
+        notify("netcut", f"{n} aturan blokir/limit dilepas")
 
     def act_quit(self, *_a):
         notify("netcut", "netcut dihentikan")
@@ -87,13 +110,83 @@ class TrayIcon:
             pass
         Gtk.main_quit()
 
+    # -- blokir cepat (multi-select) -----------------------------------
+    def _quick_pick(self, title: str, hint: str, rows: list[tuple[str, str]],
+                    preselect: bool = False) -> list[str]:
+        """Buka dialog checklist zenity, kembalikan daftar IP terpilih."""
+        if not zenity_available():
+            notify("netcut", "Butuh zenity untuk dialog pilih perangkat",
+                   "dialog-error")
+            return []
+        if not rows:
+            notify("netcut", "Tidak ada perangkat yang bisa dipilih")
+            return []
+        args = ["zenity", "--list", "--checklist",
+                f"--title={title}", f"--text={hint}",
+                "--column=Pilih", "--column=IP", "--column=Perangkat",
+                "--separator=|", "--width=460", "--height=420",
+                "--hide-column-header=1"]
+        for ip, dev in rows:
+            args.append(f"{'TRUE' if preselect else 'FALSE'}|{ip}|{dev}")
+        try:
+            proc = subprocess.run(args, capture_output=True, text=True, timeout=300)
+        except (OSError, subprocess.SubprocessError) as exc:
+            notify("netcut", f"Gagal membuka dialog: {exc}", "dialog-error")
+            return []
+        if proc.returncode != 0:
+            return []  # pengguna menekan cancel
+        picked = []
+        for line in proc.stdout.splitlines():
+            parts = line.split("|")
+            if len(parts) >= 2 and parts[1].strip():
+                picked.append(parts[1].strip())
+        return picked
+
+    def act_quick_block(self, *_a):
+        snap = self._snap or api("/api/hosts")
+        blocked = set(snap.get("blocked", []))
+        rows = [(h["ip"], (h.get("vendor") or "unknown")[:28])
+                for h in snap.get("hosts", []) if h["ip"] not in blocked]
+        picked = self._quick_pick("Blokir perangkat",
+                                  "Pilih perangkat yang mau diblokir", rows)
+        if not picked:
+            return
+        ok = 0
+        for ip in picked:
+            if api("/api/block", {"ip": ip}).get("ok"):
+                ok += 1
+        notify("netcut", f"{ok}/{len(picked)} perangkat diblokir")
+
+    def act_quick_unblock(self, *_a):
+        snap = self._snap or api("/api/hosts")
+        rows = [(ip, "diblokir") for ip in snap.get("blocked", [])]
+        rows += [(ip, f"limit {kbps} kbps")
+                 for ip, kbps in snap.get("limited", {}).items()
+                 if ip not in snap.get("blocked", [])]
+        picked = self._quick_pick("Buka blokir / limit",
+                                  "Pilih perangkat yang mau dilepas", rows)
+        if not picked:
+            return
+        ok = 0
+        for ip in picked:
+            r = api("/api/unblock", {"ip": ip})
+            r2 = api("/api/unlimit", {"ip": ip})
+            if r.get("ok") or r2.get("ok"):
+                ok += 1
+        notify("netcut", f"{ok}/{len(picked)} perangkat dibuka")
+
     # -- monitoring ----------------------------------------------------
     def _watch(self):
+        """Satu poller untuk tooltip, notifikasi, dan status server."""
         while True:
             try:
                 snap = api("/api/hosts")
-                if snap and "net" in snap:
-                    net = snap["net"]
+                if snap and "hosts" in snap:
+                    if not self._online:
+                        self._online = True
+                        notify("netcut", "Server kembali merespons")
+                    self._snap = snap
+                    net = snap.get("net", {})
                     sig = (net.get("ssid", ""), net.get("gateway", ""))
                     if self._last_net and sig != self._last_net:
                         notify("netcut",
@@ -104,9 +197,64 @@ class TrayIcon:
                     for ip in blocked - self._last_blocked:
                         notify("netcut", f"{ip} diblokir")
                     self._last_blocked = blocked
+
+                    limited = set(snap.get("limited", {}))
+                    for ip in limited - self._last_limited:
+                        notify("netcut", f"{ip} dibatasi "
+                                         f"{snap['limited'][ip]} kbps")
+                    self._last_limited = limited
+                elif self._online:
+                    self._online = False
+                    notify("netcut", "Server netcut tidak merespons",
+                           "dialog-error")
             except Exception:
                 pass
-            time.sleep(3)
+            self._refresh_ui()
+            time.sleep(2)
+
+    def _refresh_ui(self) -> None:
+        """Perbarui tooltip dan ikon dari snapshot terakhir."""
+        if self.indicator is None:
+            return
+        snap = self._snap
+        if not snap:
+            self.indicator.set_title("netcut - server tidak merespons")
+            return
+        n = len(snap.get("hosts", []))
+        blocked = len(snap.get("blocked", []))
+        limited = len(snap.get("limited", {}))
+        net = snap.get("net", {})
+        label = f"netcut - {net.get('ssid') or net.get('iface') or '?'}: {n} host"
+        if blocked:
+            label += f", {blocked} diblokir"
+        if limited:
+            label += f", {limited} limited"
+        self.indicator.set_title(label)
+
+        # ikon attention ketika ada perangkat yang diblokir
+        try:
+            if blocked:
+                self.indicator.set_attention_icon(
+                    AppIndicator3.Indicator.new_full(ICON, "netcut"))
+            else:
+                self.indicator.set_attention_icon(
+                    AppIndicator3.Indicator.new_full("", ""))
+        except Exception:
+            pass
+
+        # baris info di menu
+        rate = fmt_rate((snap.get("rx_rate") or 0) + (snap.get("tx_rate") or 0))
+        self._set_info("iNet", net.get("ssid") or net.get("iface") or "—")
+        self._set_info("iStat", f"{n} host · {rate}"
+                                + (f" · {blocked} diblokir" if blocked else ""))
+
+    def _set_info(self, key: str, text: str) -> None:
+        item = self._items.get(key)
+        if item is None:
+            return
+        label = item.get_child()
+        if label is not None:
+            label.set_text(text)
 
     def run(self) -> int:
         self.indicator = AppIndicator3.Indicator.new(
@@ -117,6 +265,11 @@ class TrayIcon:
 
         menu = Gtk.Menu()
 
+        # baris informasi (tidak bisa diklik)
+        self._items["iNet"] = self._info_item(menu, "—")
+        self._items["iStat"] = self._info_item(menu, "—")
+        menu.append(Gtk.SeparatorMenuItem())
+
         item_dash = Gtk.MenuItem.new_with_label("Buka Dashboard")
         item_dash.connect("activate", lambda *_: self.open_dashboard())
         menu.append(item_dash)
@@ -124,6 +277,14 @@ class TrayIcon:
         item_scan = Gtk.MenuItem.new_with_label("Scan ARP")
         item_scan.connect("activate", self.act_scan)
         menu.append(item_scan)
+
+        item_qb = Gtk.MenuItem.new_with_label("Blokir cepat…")
+        item_qb.connect("activate", self.act_quick_block)
+        menu.append(item_qb)
+
+        item_qu = Gtk.MenuItem.new_with_label("Buka blokir / limit…")
+        item_qu.connect("activate", self.act_quick_unblock)
+        menu.append(item_qu)
 
         item_rules = Gtk.MenuItem.new_with_label("Aturan nftables")
         item_rules.connect("activate", self.act_rules)
@@ -159,9 +320,16 @@ class TrayIcon:
         signal.signal(signal.SIGINT, lambda *_: Gtk.main_quit())
         signal.signal(signal.SIGTERM, lambda *_: Gtk.main_quit())
 
-        GLib.timeout_add_seconds(1, self._update_title)
         Gtk.main()
         return 0
+
+    @staticmethod
+    def _info_item(menu: Gtk.Menu, text: str) -> Gtk.MenuItem:
+        """Baris menu non-interaktif sebagai penanda status."""
+        item = Gtk.MenuItem.new_with_label(text)
+        item.set_sensitive(False)
+        menu.append(item)
+        return item
 
     def _on_scroll(self, *_a):
         """Klik tengah pada icon = buka dashboard."""
@@ -170,22 +338,6 @@ class TrayIcon:
         except Exception:
             pass
         return False
-
-    def _update_title(self):
-        """Tampilkan ringkasan di tooltip icon."""
-        try:
-            snap = api("/api/hosts")
-            if snap and "hosts" in snap:
-                n = len(snap["hosts"])
-                blocked = len(snap.get("blocked", []))
-                net = snap.get("net", {})
-                label = f"netcut - {net.get('ssid') or net.get('iface')}: {n} host"
-                if blocked:
-                    label += f", {blocked} diblokir"
-                self.indicator.set_title(label)
-        except Exception:
-            pass
-        return True
 
 
 def _show_text(title: str, body: str) -> None:

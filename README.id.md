@@ -14,9 +14,13 @@ namun diimplementasikan ulang dengan tool Linux native.
 - **Monitoring real-time** per host: IP, MAC, vendor, download, upload, total
 - **Blokir device** — memutus akses internet sebuah perangkat di jaringan
 - **Batasi bandwidth** per device (kbps)
+- **Aksi massal** — pilih banyak perangkat sekaligus, lalu blokir/buka/limit
+  semuanya dalam satu klik
+- **Cari & filter** — pencarian IP/MAC/perangkat + filter Aktif/Diblokir/Limited
 - **Lookup vendor** dari database OUI lokal
 - **Discovery host** via ARP scan + cache ARP kernel
 - **Web dashboard** dengan REST API JSON
+- **Tema gelap & terang** (dark-first, tombol ganti +remember)
 - **Aplikasi Linux native**: launcher, entry app menu, system tray
 - **Deteksi otomatis perpindahan WiFi** — scan ulang saat jaringan berganti
 
@@ -64,8 +68,11 @@ Mode yang aktif terlihat di header dashboard: `capture` (penuh) atau
 ```bash
 netcut                          # buka web GUI + system tray
 netcut --tray                   # hanya system tray
-netcut --status                 # cek server jalan/tidak
+netcut --status                 # cek status server (URL, mode, jumlah host)
 netcut --stop                   # hentikan server
+netcut --port 8090              # pakai porta lain
+netcut --no-tray                # server tanpa ikon system tray
+netcut --help                   # bantuan
 
 sudo ./netcut.py --once         # snapshot sekali
 sudo ./netcut.py --json         # output JSON
@@ -84,12 +91,41 @@ sudo ./netcut.py --web --web-port 8080
 ```
 
 - Tabel live per-host: IP, MAC, vendor, download, upload, total
-- Sortir per kolom (klik header)
+- Sortir per kolom (klik header, **tanpa** request ke server)
+- **Cari** IP/MAC/perangkat + **filter** Semua / Aktif / Diblokir / Limited
+- **Multi-select**: centang atau klik baris untuk menyelect beberapa
+  perangkat, lalu pakai bilah aksi massal untuk blokir/buka/limit sekaligus
 - Tombol **Blokir** / **Buka** dan **Limit** / **Buka limit** per baris
-- Kartu ringkasan: total download, upload, host aktif, paket, trafik total
+- Dialog limit dengan preset (128/256/512/1024/2048 kbps) — bukan `prompt()`
+- Kartu ringkasan: total download, upload, host aktif, jumlah diblokir, paket
+- Baris total di kaki tabel, dan baris idle (>45s) diredupkan
 - **Scan ARP** (background, tidak membekukan UI)
-- **Aturan nft** untuk melihat rule yang aktif
+- **Aturan nft** dalam dialog yang bisa disalin
 - Ganti interface langsung dari header
+- **Jeda polling** (`P`), ganti tema (`T`), bantuan (`?`)
+- Poll berhenti otomatis saat tab browser tidak aktif
+
+![Mode blokir](assets/blocked.png)
+
+**Aksi massal** — pilih beberapa perangkat, lalu blokir sekaligus:
+
+![Aksi massal](assets/bulk.png)
+
+Tema terang (tombol sun di header):
+
+![Tema terang](assets/light.png)
+
+#### Pintasan keyboard
+
+| Pintasan | Fungsi |
+|---|---|
+| `/` | Fokus ke kolom pencarian |
+| `Ctrl`+`A` | Pilih semua perangkat yang tampil |
+| `Esc` | Tutup dialog / bersihkan pencarian |
+| `S` | Scan ARP |
+| `R` | Lihat aturan nftables |
+| `P` | Jeda / lanjut polling |
+| `T` | Ganti tema |
 
 ### REST API
 
@@ -101,23 +137,29 @@ sudo ./netcut.py --web --web-port 8080
 | `/api/unblock` | POST | `{"ip":"..."}` | lepas blokir |
 | `/api/limit` | POST | `{"ip":"...","kbps":512}` | batasi bandwidth |
 | `/api/unlimit` | POST | `{"ip":"..."}` | lepas limit |
+| `/api/bulk` | POST | `{"ips":[...],"action":"block\|unblock\|limit\|unlimit","kbps":512}` | aksi massal (diproses paralel) |
 | `/api/scan` | POST | `{"net":"..."}` | ARP scan (background) |
 | `/api/iface` | POST | `{"iface":"..."}` | ganti interface |
 
 ### System tray
 
-Ikon di system tray menampilkan tooltip live: `netcut - <SSID>: <jumlah> host`.
-Menu klik-kanan:
+Ikon di system tray menampilkan tooltip live: `netcut - <SSID>: <jumlah> host`
+(plus jumlah yang diblokir/limited). Ikon berubah jadi attention ketika ada
+perangkat yang diblokir. Menu klik-kanan:
 
 - **Buka Dashboard** — buka web GUI di browser
 - **Scan ARP** — scan subnet aktif
+- **Blokir cepat…** — dialog checklist zenity, pilih banyak perangkat lalu
+  blokir sekaligus
+- **Buka blokir / limit…** — dialog checklist untuk melepas blokir/limit
 - **Aturan nftables** — tampilkan rule aktif
 - **Lepas Semua Blokir** — cabut blokir & limit
 - **Keluar** — hentikan
 
 Tray memakai `AppIndicator3` (protokol StatusNotifier) — di Wayland tray hanya
 bisa lewat protokol itu. Notifikasi desktop muncul saat jaringan berubah atau
-ada host diblokir.
+ada host diblokir/dibatasi.
+
 
 ### Keybind niri
 
@@ -141,10 +183,6 @@ laptop — lalu baru bisa di-drop atau di-rate-limit di sini.
 - Mode **Blokir** → paket masuk ke laptop lalu dibuang
 - Mode **Limit** → paket masuk ke laptop, diteruskan ke gateway, tapi
   dibatasi rate-nya
-
-Saat sebuah device diblokir, barisnya ditandai merah dengan badge status:
-
-![Device diblokir](assets/blocked.png)
 
 ## Batasan yang diketahui
 
@@ -177,10 +215,14 @@ subnet baru.
 ```bash
 python3 test_parser.py     # 9 unit test, tanpa root
 sudo python3 test_suite.py # 28 test end-to-end di jaringan virtual terisolasi
+python3 tools/ui_test.py --serve   # 44 test UI dashboard (butuh playwright)
 ```
 
 Test end-to-end memakai `veth` + network namespace sehingga tidak menyentuh
 jaringan host, dan otomatis di-skip bila `CAP_NET_ADMIN` tidak tersedia.
+
+Test UI memakai Chromium (Playwright) terhadap server demo berisi data
+sintetis — tidak menyentuh jaringan asli sama sekali.
 
 ## Regenerasi screenshot
 

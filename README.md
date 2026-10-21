@@ -14,9 +14,13 @@ but it is reimplemented with native Linux tooling.
 - **Real-time monitoring** per host: IP, MAC, vendor, download, upload, total
 - **Block a device** — cut a device's internet access on the network
 - **Bandwidth limiting** per device (kbps)
+- **Bulk actions** — select many devices at once, then block, unblock or limit
+  them all in one go
+- **Search & filter** — by IP/MAC/vendor, plus Active/Blocked/Limited filters
 - **Vendor lookup** from the local OUI database
 - **Host discovery** via ARP scan + kernel ARP cache
 - **Web dashboard** with a JSON REST API
+- **Dark & light themes** (dark-first, with a toggle that remembers your pick)
 - **Native Linux app**: launcher, app menu entry, system tray
 - **Automatic WiFi change detection** — rescan when the network changes
 
@@ -65,8 +69,11 @@ The active mode is shown in the dashboard header: `capture` (full) or
 ```bash
 netcut                          # open web GUI + system tray
 netcut --tray                   # system tray only
-netcut --status                 # check whether the server is running
+netcut --status                 # server status (URL, mode, host count)
 netcut --stop                   # stop the server
+netcut --port 8090              # use a different port
+netcut --no-tray                # run the server without a tray icon
+netcut --help                   # help
 
 sudo ./netcut.py --once         # single snapshot
 sudo ./netcut.py --json         # JSON output
@@ -85,12 +92,41 @@ sudo ./netcut.py --web --web-port 8080
 ```
 
 - Live per-host table: IP, MAC, vendor, download, upload, total
-- Sort by column (click a header)
+- Sort by column (click a header) — entirely client side, no server round-trip
+- **Search** by IP/MAC/vendor, plus **filters** for All / Active / Blocked / Limited
+- **Multi-select**: tick a checkbox or click a row to select several devices,
+  then use the bulk action bar to block, unblock or limit them all at once
 - **Block** / **Unblock** and **Limit** / **Remove limit** buttons per row
-- Summary cards: total download, upload, active hosts, packets, total traffic
+- Limit dialog with presets (128/256/512/1024/2048 kbps) instead of `prompt()`
+- Summary cards: total download, upload, active hosts, blocked count, packets
+- Table footer with totals; idle rows (>45s) are dimmed
 - **ARP scan** (background, does not freeze the UI)
-- **nft rules** to inspect the active ruleset
+- **nft rules** in a copyable dialog
 - Switch interface directly from the header
+- **Pause polling** (`P`), toggle theme (`T`), help (`?`)
+- Polling stops automatically while the browser tab is in the background
+
+![Blocked device](assets/blocked.png)
+
+**Bulk actions** — select several devices, then block them all at once:
+
+![Bulk actions](assets/bulk.png)
+
+Light theme (the sun button in the header):
+
+![Light theme](assets/light.png)
+
+#### Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `/` | Focus the search box |
+| `Ctrl`+`A` | Select every visible device |
+| `Esc` | Close a dialog / clear the search |
+| `S` | ARP scan |
+| `R` | Show nftables rules |
+| `P` | Pause / resume polling |
+| `T` | Toggle theme |
 
 ### REST API
 
@@ -102,23 +138,27 @@ sudo ./netcut.py --web --web-port 8080
 | `/api/unblock` | POST | `{"ip":"..."}` | unblock a host |
 | `/api/limit` | POST | `{"ip":"...","kbps":512}` | limit bandwidth |
 | `/api/unlimit` | POST | `{"ip":"..."}` | remove limit |
+| `/api/bulk` | POST | `{"ips":[...],"action":"block\|unblock\|limit\|unlimit","kbps":512}` | bulk action (processed in parallel) |
 | `/api/scan` | POST | `{"net":"..."}` | ARP scan (background) |
 | `/api/iface` | POST | `{"iface":"..."}` | switch interface |
 
 ### System tray
 
-The tray icon shows a live tooltip: `netcut - <SSID>: <host count>`.
-Right-click menu:
+The tray icon shows a live tooltip: `netcut - <SSID>: <host count>` (plus how
+many devices are blocked or limited). The icon switches to an attention state
+while devices are blocked. Right-click menu:
 
 - **Open Dashboard** — open the web GUI in your browser
 - **ARP Scan** — scan the active subnet
+- **Quick block…** — a zenity checklist, pick many devices and block them at once
+- **Unblock / remove limit…** — a checklist for lifting blocks and limits
 - **nftables Rules** — show the active ruleset
 - **Remove All Blocks** — clear blocks & limits
 - **Quit** — stop
 
 The tray uses `AppIndicator3` (StatusNotifier protocol) — on Wayland that is
 the only way to get a tray icon. Desktop notifications appear when the network
-changes or a host is blocked.
+changes or a host is blocked/limited.
 
 ### niri keybind
 
@@ -143,10 +183,6 @@ here.
 - **Block** mode → packets reach the laptop and are dropped
 - **Limit** mode → packets reach the laptop, are forwarded to the gateway,
   but rate-limited
-
-When a device is blocked, its row is highlighted in red with status badges:
-
-![Device blocked](assets/blocked.png)
 
 ## Known limitations
 
@@ -180,11 +216,15 @@ the new subnet.
 ```bash
 python3 test_parser.py     # 9 unit tests, no root required
 sudo python3 test_suite.py # 28 end-to-end tests on an isolated virtual network
+python3 tools/ui_test.py --serve   # 44 dashboard UI tests (needs playwright)
 ```
 
 The end-to-end tests use `veth` + network namespaces so they never touch the
 host network, and they are skipped automatically when `CAP_NET_ADMIN` is not
 available.
+
+The UI tests drive Chromium (Playwright) against a demo server filled with
+synthetic data — they never touch a real network.
 
 ## Regenerating screenshots
 
