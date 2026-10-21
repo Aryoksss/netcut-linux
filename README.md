@@ -28,30 +28,63 @@ but it is reimplemented with native Linux tooling.
 
 ### Docker (easiest)
 
+The image is published to GHCR, so there's nothing to build:
+
+```bash
+docker pull ghcr.io/aryoksss/netcut-linux:latest
+
+docker run -d --name netcut \
+  --network=host \
+  --cap-add=NET_RAW --cap-add=NET_ADMIN \
+  --restart unless-stopped \
+  ghcr.io/aryoksss/netcut-linux:latest
+```
+
+The dashboard is up at **http://127.0.0.1:8080**.
+
+If you prefer compose, clone first and use the same image:
+
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
 cd netcut-linux
+docker compose pull      # fetch the image from GHCR
 docker compose up -d
 ```
 
-The dashboard is up at **http://127.0.0.1:8080**. The image is fully
-self-contained — Python, scapy, nftables and the OUI database are baked in,
-so no host filesystem mounts are needed.
+Or build it yourself from source (no GHCR):
 
 ```bash
-docker compose logs -f   # follow the logs
-docker compose down      # stop it
+git clone https://github.com/Aryoksss/netcut-linux
+cd netcut-linux
+docker compose up -d --build
 ```
 
-Or without compose:
+The image is fully self-contained — Python, scapy, nftables and the OUI
+database are baked in, so no host filesystem mounts are needed.
 
 ```bash
-docker build -t netcut-linux .
-docker run --rm -d --name netcut \
-  --network=host \
-  --cap-add=NET_RAW --cap-add=NET_ADMIN \
-  netcut-linux
+docker logs -f netcut     # follow the logs
+docker rm -f netcut       # stop it
 ```
+
+Available tags: `latest`, version tags (`1.1.1`, `1.1`), and `sha-<commit>`.
+
+#### Does it work on the real LAN/WiFi?
+
+Yes — with `--network=host` the container uses the host's interfaces
+directly, so what it sees is your real WiFi/LAN, not the Docker bridge.
+Actual output from the GHCR image above (laptop on WiFi):
+
+```
+mode  : capture
+iface : wlp0s20f3          <- host WiFi interface
+net   : 192.168.1.0/24     <- the real LAN subnet
+hosts : 3                  <- other devices on that network
+```
+
+One requirement: **Linux**. Docker Desktop (macOS/Windows) runs containers
+inside a VM, so `--network=host` there points at the VM's network, not your
+LAN — ARP spoofing won't reach it. On those platforms use the native mode.
 
 Two things are required:
 

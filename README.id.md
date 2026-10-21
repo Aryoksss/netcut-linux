@@ -28,30 +28,63 @@ namun diimplementasikan ulang dengan tool Linux native.
 
 ### Docker (paling gampang)
 
+Image sudah tersedia di GHCR, jadi tidak perlu build sama sekali:
+
+```bash
+docker pull ghcr.io/aryoksss/netcut-linux:latest
+
+docker run -d --name netcut \
+  --network=host \
+  --cap-add=NET_RAW --cap-add=NET_ADMIN \
+  --restart unless-stopped \
+  ghcr.io/aryoksss/netcut-linux:latest
+```
+
+Dashboard langsung jalan di **http://127.0.0.1:8080**.
+
+Kalau lebih suka compose, clone dulu lalu pakai image yang sama:
+
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
 cd netcut-linux
+docker compose pull      # ambil image dari GHCR
 docker compose up -d
 ```
 
-Dashboard langsung jalan di **http://127.0.0.1:8080**. Image-nya mandiri
-saja: Python, scapy, nftables, dan database OUI sudah di dalam, jadi tidak
-perlu mount filesystem host.
+Atau build sendiri dari source (tanpa GHCR):
 
 ```bash
-docker compose logs -f   # lihat log
-docker compose down      # hentikan
+git clone https://github.com/Aryoksss/netcut-linux
+cd netcut-linux
+docker compose up -d --build
 ```
 
-Atau tanpa compose:
+Image-nya mandiri: Python, scapy, nftables, dan database OUI sudah di dalam,
+jadi tidak perlu mount filesystem host.
 
 ```bash
-docker build -t netcut-linux .
-docker run --rm -d --name netcut \
-  --network=host \
-  --cap-add=NET_RAW --cap-add=NET_ADMIN \
-  netcut-linux
+docker logs -f netcut     # lihat log
+docker rm -f netcut       # hentikan
 ```
+
+Tag yang tersedia: `latest`, tag versi (`1.1.1`, `1.1`), dan `sha-<commit>`.
+
+#### Bisa dipakai di LAN/WiFi asli?
+
+Ya — dengan `--network=host` container memakai interface host apa adanya,
+jadi yang dipakai adalah WiFi/LAN asli, bukan bridge Docker. Contoh nyata
+dari image GHCR di atas (laptop via WiFi):
+
+```
+mode  : capture
+iface : wlp0s20f3          <- interface WiFi host
+net   : 192.168.1.0/24     <- subnet LAN asli
+hosts : 3                  <- perangkat lain di jaringan itu
+```
+
+Satu syarat: **Linux**. Docker Desktop (macOS/Windows) menjalankan container
+di dalam VM, jadi `--network=host` di sana menunjuk jaringan VM, bukan LAN
+Anda — ARP spoofing tidak akan sampai. Di platform itu pakai mode native.
 
 Dua hal yang wajib:
 

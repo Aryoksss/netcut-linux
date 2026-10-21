@@ -22,7 +22,7 @@ import time
 import urllib.error
 import urllib.request
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 NETCUT_PY = os.path.join(APP_DIR, "netcut.py")
