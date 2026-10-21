@@ -22,6 +22,8 @@ import time
 import urllib.error
 import urllib.request
 
+__version__ = "1.1.0"
+
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 NETCUT_PY = os.path.join(APP_DIR, "netcut.py")
 PID_FILE = os.path.expanduser("~/.cache/netcut/netcut.pid")
@@ -146,6 +148,7 @@ USAGE = f"""\
   {C.bold('--port')} PORT       porta web GUI (default {PORT}, atau env NETCUT_PORT)
   {C.bold('--no-tray')}         jalankan server tanpa ikon system tray
   {C.bold('-h, --help')}        tampilkan bantuan ini
+  {C.bold('--version')}         tampilkan versi
 
 Dashboard web  : {C.bold(BASE)}
 Aturan nft    : sudo nft list table inet netcut
@@ -483,7 +486,8 @@ def doctor() -> int:
     Dipakai user yang mau cek "kenapa belum jalan?" sebelum mulai.
     """
     problems = 0
-    print(f"{C.bold('netcut-linux')}  {C.dim('doctor')}\n")
+    print(f"{C.bold('netcut-linux')} {C.dim('v' + __version__)}"
+          f"  {C.dim('doctor')}\n")
 
     print(f"  {C.bold('dependency')}")
     try:
@@ -584,6 +588,10 @@ def doctor() -> int:
 def main() -> int:
     args = sys.argv[1:]
 
+    if "--version" in args or "-V" in args:
+        print(f"netcut-linux {__version__}")
+        return 0
+
     if "-h" in args or "--help" in args:
         print(USAGE)
         return 0
@@ -621,7 +629,8 @@ def main() -> int:
             # server dari luar (mis. docker compose) - bukan milik launcher
             running = True
             mode = "external"
-        print(f"{C.bold('netcut-linux')}  {C.dim('status')}")
+        print(f"{C.bold('netcut-linux')} {C.dim('v' + __version__)}"
+              f"  {C.dim('status')}")
         print(f"  server     : {C.green('running') if running else C.red('stopped')}"
               f"  {C.dim('(' + mode + ')')}")
         print(f"  dashboard  : {BASE}")
