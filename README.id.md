@@ -1,13 +1,27 @@
 # netcut-linux
 
-Monitor bandwidth per-host & kontrol trafik untuk jaringan lokal di Linux.
+[![CI](https://github.com/Aryoksss/netcut-linux/actions/workflows/test.yml/badge.svg)](https://github.com/Aryoksss/netcut-linux/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/Aryoksss/netcut-linux?sort=semver)](https://github.com/Aryoksss/netcut-linux/releases/latest)
+[![GHCR](https://img.shields.io/badge/ghcr.io-netcut--linux-2496ED?logo=docker&logoColor=white)](https://github.com/Aryoksss/netcut-linux/pkgs/container/netcut-linux)
+[![License](https://img.shields.io/github/license/Aryoksss/netcut-linux)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](#syarat)
 
+Monitor bandwidth per-host & kontrol trafik untuk jaringan lokal sendiri.
 Terinspirasi dari **NetCut** untuk Windows — interface dan perilakunya serupa,
 namun diimplementasikan ulang dengan tool Linux native.
 
 [English](README.md) · **Bahasa Indonesia**
 
-![Dashboard netcut-linux](assets/dashboard.png)
+![netcut-linux — monitoring bandwidth per host dan kontrol trafik](assets/hero.png)
+
+> **Pakai hanya di perangkat dan jaringan milik sendiri.** Blokir dan limit
+> bekerja lewat ARP spoofing, teknik MITM yang bisa disalahgunakan. Lihat
+> [Lisensi](#lisensi).
+
+**Isi** · [Fitur](#fitur) · [Pemasangan](#pemasangan) ·
+[Pemakaian](#pemakaian) · [Cara kerja](#cara-kerja) ·
+[Batasan](#batasan-yang-diketahui) · [Test](#test) ·
+[Pengembangan](#pengembangan) · [Lisensi](#lisensi)
 
 ## Fitur
 
@@ -20,9 +34,13 @@ namun diimplementasikan ulang dengan tool Linux native.
 - **Lookup vendor** dari database OUI lokal
 - **Discovery host** via ARP scan + cache ARP kernel
 - **Web dashboard** dengan REST API JSON
-- **Tema gelap & terang** (dark-first, tombol ganti +remember)
+- **Tema gelap & terang** (dark-first, tombol ganti + ingat pilihan)
 - **Aplikasi Linux native**: launcher, entry app menu, system tray
 - **Deteksi otomatis perpindahan WiFi** — scan ulang saat jaringan berganti
+
+Dashboard-nya, dijalankan dengan data demo:
+
+![Dashboard netcut-linux](assets/dashboard.png)
 
 ## Pemasangan
 
@@ -42,7 +60,15 @@ docker run -d --name netcut \
 
 Dashboard langsung jalan di **http://127.0.0.1:8080**.
 
-Kalau lebih suka compose, clone dulu lalu pakai image yang sama:
+```bash
+docker logs -f netcut     # lihat log
+docker rm -f netcut       # hentikan dan hapus
+```
+
+Tag yang tersedia: `latest`, tag versi (`1.1.1`, `1.1`), dan `sha-<commit>`.
+
+<details>
+<summary>Alternatif: docker compose</summary>
 
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
@@ -51,7 +77,10 @@ docker compose pull      # ambil image dari GHCR
 docker compose up -d
 ```
 
-Atau build sendiri dari source (tanpa GHCR):
+</details>
+
+<details>
+<summary>Alternatif: build dari source</summary>
 
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
@@ -60,20 +89,16 @@ docker compose up -d --build
 ```
 
 Image-nya mandiri: Python, scapy, nftables, dan database OUI sudah di dalam,
-jadi tidak perlu mount filesystem host.
+jadi tidak perlu mount filesystem host. Build pertama mengunduh paket Debian
+(~1–2 menit tanpa cache).
 
-```bash
-docker logs -f netcut     # lihat log
-docker rm -f netcut       # hentikan
-```
-
-Tag yang tersedia: `latest`, tag versi (`1.1.1`, `1.1`), dan `sha-<commit>`.
+</details>
 
 #### Bisa dipakai di LAN/WiFi asli?
 
-Ya — dengan `--network=host` container memakai interface host apa adanya,
-jadi yang dipakai adalah WiFi/LAN asli, bukan bridge Docker. Contoh nyata
-dari image GHCR di atas (laptop via WiFi):
+Ya. Dengan `--network=host` container memakai interface host apa adanya, jadi
+yang dipakai adalah WiFi/LAN asli, bukan bridge Docker. Output dari image GHCR
+di laptop yang tersambung lewat WiFi:
 
 ```
 mode  : capture
@@ -82,33 +107,24 @@ net   : 192.168.1.0/24     <- subnet LAN asli
 hosts : 3                  <- perangkat lain di jaringan itu
 ```
 
-Satu syarat: **Linux**. Docker Desktop (macOS/Windows) menjalankan container
-di dalam VM, jadi `--network=host` di sana menunjuk jaringan VM, bukan LAN
-Anda — ARP spoofing tidak akan sampai. Di platform itu pakai mode native.
+### Syarat
 
-Dua hal yang wajib:
+- **Linux.** Ini wajib, bukan preferensi: `network_mode: host` di Docker
+  Desktop (macOS/Windows) menunjuk jaringan VM, bukan LAN Anda, sehingga ARP
+  spoofing tidak sampai ke jaringan sebenarnya. Di platform itu container
+  maupun mode native sama-sama tidak bisa mengontrol perangkat lain.
+- **`--network=host`** dan **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — ARP
+  spoofing dan relay harus bekerja pada interface host yang asli, dan aturan
+  nftables butuh `NET_ADMIN`. Tanpa host networking, container ada di network
+  namespace sendiri dan tidak melihat LAN sama sekali.
+- **User ada di grup `docker`** — kalau belum, hasilnya `permission denied`
+  saat menghubungi Docker daemon. Perbaiki dengan
+  `sudo usermod -aG docker $USER` lalu logout-login.
 
-- **`--network=host`** — ARP spoofing dan relay harus bekerja pada interface
-  host yang asli. Tanpa itu container ada di network namespace sendiri dan
-  tidak akan melihat LAN sama sekali.
-- **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — untuk capture paket dan
-  aturan nftables.
-
-#### Syarat
-
-- **Docker terpasang**, dan user kamu **ada di grup `docker`** — kalau belum:
-  `sudo usermod -aG docker $USER` lalu logout-login. Tanpa itu hasilnya
-  `permission denied` saat menghubungi Docker daemon.
-- **Linux saja.** `network_mode: host` di Docker Desktop (macOS/Windows)
-  memakai jaringan di dalam VM, jadi container tidak melihat LAN asli —
-  ARP spoofing tidak akan bekerja ke jaringan sebenarnya. Di platform itu,
-  pakai mode native saja (running dengan `sudo`).
-- Build pertama mengunduh paket Debian (~1–2 menit tanpa cache). Setelah
-  itu image-nya tersimpan lokal.
-
-Perlu diperhatikan: dengan `--network=host`, container berbagi network
-namespace dengan host, jadi aturan nftables-nya ikut berlaku untuk host.
-Itu memang dibutuhkan — tanpa itu trafik device lain tidak bisa diintervensi.
+Satu konsekuensi yang perlu diketahui: dengan `--network=host` container
+berbagi network namespace dengan host, jadi aturan nftables-nya ikut berlaku
+untuk host. Itu memang dibutuhkan — tanpa itu trafik device lain tidak bisa
+diintervensi.
 
 ### Native (launcher)
 
@@ -120,15 +136,14 @@ netcut --doctor       # pastikan environment sudah siap
 netcut                # buka dashboard + system tray
 ```
 
-`install.sh` mengecek dependency dulu dan menawarkan menambahkannya ke
-`~/.bashrc` supaya `netcut` bisa dipanggil dari mana saja. Kalau mau
+`install.sh` mengecek dependency dulu dan menawarkan menambahkan `~/.local/bin`
+ke `~/.bashrc` supaya `netcut` bisa dipanggil dari mana saja. Launcher
+terpasang di `~/.local/bin/netcut` dan aplikasi muncul di app menu. Kalau mau
 dependency ikut dipasang:
 
 ```bash
 sudo ./install.sh --with-deps
 ```
-
-Launcher terpasang di `~/.local/bin/netcut` dan aplikasi muncul di app menu.
 
 Alternatif tanpa instalasi:
 
@@ -150,22 +165,22 @@ akan dipakai.
 ### Privilege
 
 Blokir & limit device lain butuh `CAP_NET_RAW` (capture) dan `CAP_NET_ADMIN`
-(nftables). Launcher mengurusinya secara otomatis:
+(nftables). Launcher mengurusnya secara otomatis:
 
 1. **Punya `CAP_NET_RAW`** → jalan langsung
 2. **Bisa pakai docker** (user ada di grup `docker`) → server dijalankan di
    container dengan `--cap-add=NET_RAW --cap-add=NET_ADMIN --network=host`
-3. **Else** → mode fallback: monitoring total interface saja, tanpa kontrol
+3. **Selain itu** → mode fallback: monitoring total interface saja, tanpa kontrol
 
 Mode yang aktif terlihat di header dashboard: `capture` (penuh) atau
-`fallback-no-root` (terbatas). Di mode fallback, dashboard menampilkan
-banner kuning dan tombol Blokir/Limit dimatikan dari awal, jadi tidak ada
-klik yang gagal tanpa penjelasan. `netcut --doctor` menyebutkan cara
-mengaktifkan mode penuh.
+`fallback-no-root` (terbatas). Di mode fallback, dashboard menampilkan banner
+kuning dan tombol Blokir/Limit dimatikan dari awal, jadi tidak ada klik yang
+gagal tanpa penjelasan. `netcut --doctor` menyebutkan cara mengaktifkan mode
+penuh.
 
 ## Pemakaian
 
-### CLI
+### Launcher
 
 ```bash
 netcut                          # buka web GUI + system tray
@@ -175,15 +190,22 @@ netcut --status                 # cek status server (URL, mode, jumlah host)
 netcut --stop                   # hentikan server
 netcut --port 8090              # pakai porta lain
 netcut --no-tray                # server tanpa ikon system tray
+netcut --version                # cetak versi
 netcut --help                   # bantuan
+```
 
-sudo ./netcut.py --once         # snapshot sekali
-sudo ./netcut.py --json         # output JSON
-sudo ./netcut.py --scan         # ARP scan
-sudo ./netcut.py --block 192.168.1.50      # blokir device
-sudo ./netcut.py --cut 192.168.1.50        # cut koneksi device
-sudo ./netcut.py --limit 192.168.1.50 512  # batasi 512 kbps
-sudo ./netcut.py --unblock 192.168.1.50    # lepas blokir
+### Script langsung
+
+Berguna untuk scripting atau kalau launcher dilewati. Semuanya butuh root:
+
+```bash
+sudo ./netcut.py --once                     # snapshot sekali
+sudo ./netcut.py --json                     # output JSON
+sudo ./netcut.py --scan                     # ARP scan
+sudo ./netcut.py --block 192.168.1.50       # blokir device
+sudo ./netcut.py --cut 192.168.1.50         # cut koneksi device
+sudo ./netcut.py --limit 192.168.1.50 512   # batasi 512 kbps
+sudo ./netcut.py --unblock 192.168.1.50     # lepas blokir
 sudo ./netcut.py --list-rules               # aturan nftables aktif
 ```
 
@@ -196,8 +218,8 @@ sudo ./netcut.py --web --web-port 8080
 - Tabel live per-host: IP, MAC, vendor, download, upload, total
 - Sortir per kolom (klik header, **tanpa** request ke server)
 - **Cari** IP/MAC/perangkat + **filter** Semua / Aktif / Diblokir / Limited
-- **Multi-select**: centang atau klik baris untuk menyelect beberapa
-  perangkat, lalu pakai bilah aksi massal untuk blokir/buka/limit sekaligus
+- **Multi-select**: centang atau klik baris untuk memilih beberapa perangkat,
+  lalu pakai bilah aksi massal untuk blokir/buka/limit sekaligus
 - Tombol **Blokir** / **Buka** dan **Limit** / **Buka limit** per baris
 - Dialog limit dengan preset (128/256/512/1024/2048 kbps) — bukan `prompt()`
 - Kartu ringkasan: total download, upload, host aktif, jumlah diblokir, paket
@@ -262,7 +284,6 @@ perangkat yang diblokir. Menu klik-kanan:
 Tray memakai `AppIndicator3` (protokol StatusNotifier) — di Wayland tray hanya
 bisa lewat protokol itu. Notifikasi desktop muncul saat jaringan berubah atau
 ada host diblokir/dibatasi.
-
 
 ### Keybind niri
 
@@ -340,15 +361,17 @@ melewati laptop lebih dulu. Hal itu dilakukan lewat ARP spoofing: korban diberi
 tahu bahwa gateway berada di MAC laptop, sehingga trafiknya dialihkan ke
 laptop — lalu baru bisa di-drop atau di-rate-limit di sini.
 
-- Mode **Blokir** → paket masuk ke laptop lalu dibuang
-- Mode **Limit** → paket masuk ke laptop, diteruskan ke gateway, tapi
-  dibatasi rate-nya
+**Alur paket** — perangkat → router adalah jalur normal. Setelah ARP spoof:
+perangkat → laptop, sniffer menghitung byte, nftables memutuskan, relay
+meneruskan ke gateway.
 
-| | |
-|---|---|
-| **Alur paket** | Perangkat → router: jalur normal · Setelah ARP spoof: perangkat → laptop · Sniffer hitung byte → nftables → relay · Relay teruskan ke gateway |
-| **Mode operasi** | `capture` — monitor + kontrol penuh · `fallback-no-root` — total per interface · Mode aktif tampil di header dashboard · Scan ulang otomatis saat pindah WiFi |
-| **Prasyarat** | `CAP_NET_RAW` — capture paket · `CAP_NET_ADMIN` — aturan nftables · Alternatif: container docker + `--network=host` · Dependency: scapy, nftables, hwdata |
+**Mode operasi** — `capture` memberi monitoring dan kontrol penuh;
+`fallback-no-root` hanya total per interface. Mode aktif tampil di header
+dashboard, dan tool scan ulang otomatis saat pindah WiFi.
+
+**Hak akses** — `CAP_NET_RAW` untuk capture paket, `CAP_NET_ADMIN` untuk
+aturan nftables. Jalur container menyediakan keduanya; jalur native butuh
+`sudo` atau capability tersebut.
 
 ## Batasan yang diketahui
 
@@ -370,11 +393,11 @@ laptop — lalu baru bisa di-drop atau di-rate-limit di sini.
   Di Linux, verdict `accept` di satu rantai nftables **tidak** menghentikan
   hook — rantai lain yang lebih lambat tetap jalan. Kalau host punya rantai
   `forward` dengan `policy drop` (default Ubuntu & Debian), trafik korban
-  yang dialihkan ke laptop tetap dibuang, sehingga **Limit** jadi
-  seperti **Blokir**. `netcut --doctor` mendeteksi kondisi ini, dan
-  dashboard menampilkan banner peringatan kalauLimit dipasang.
-  Solusinya: pakai **Blokir**, atau longgarkan firewall host (mis. izinkan
-  trafik dari perangkat target).
+  yang dialihkan ke laptop tetap dibuang, sehingga **Limit** jadi seperti
+  **Blokir**. `netcut --doctor` mendeteksi kondisi ini, dan dashboard
+  menampilkan banner peringatan kalau limit dipasang. Solusinya: pakai
+  **Blokir**, atau longgarkan firewall host (mis. izinkan trafik dari
+  perangkat target).
 
 - Aturan nftables berlaku untuk trafik **milik mesin ini**. Untuk membatasi
   perangkat lain secara permanen, pasang aturan di router.
@@ -389,32 +412,25 @@ subnet baru.
 ## Test
 
 ```bash
-python3 test_parser.py     # 9 unit test, tanpa root
-sudo python3 test_suite.py # 28 test end-to-end di jaringan virtual terisolasi
+python3 test_parser.py             # 9 unit test, tanpa root
+sudo python3 test_suite.py         # test end-to-end di jaringan virtual terisolasi
 python3 tools/ui_test.py --serve   # 44 test UI dashboard (butuh playwright)
 ```
 
-Test end-to-end memakai `veth` + network namespace sehingga tidak menyentuh
-jaringan host, dan otomatis di-skip bila `CAP_NET_ADMIN` tidak tersedia.
+`test_suite.py` mendefinisikan 28 cek; yang butuh `CAP_NET_ADMIN` atau
+forwarding antar namespace dilewati otomatis, jadi host terbatas menjalankan
+21 di antaranya. Test end-to-end memakai `veth` + network namespace sehingga
+tidak menyentuh jaringan host. Test UI memakai Chromium (Playwright) terhadap
+server demo berisi data sintetis.
 
-Test UI memakai Chromium (Playwright) terhadap server demo berisi data
-sintetis — tidak menyentuh jaringan asli sama sekali.
+## Pengembangan
 
-## Regenerasi screenshot
-
-Gambar di README dibuat dari HTML dashboard asli dengan data demo sintetis,
+Screenshot dan hero banner dirender dari HTML asli dengan data demo sintetis,
 jadi tidak memuat SSID atau MAC jaringan siapa pun:
 
 ```bash
-python3 tools/make_screenshots.py   # butuh firefox + Pillow
-```
-
-Database OUI (`assets/oui.txt`) dipakai image Docker supaya build tidak
-perlu jaringan. Untuk menyegarkan:
-
-```bash
-curl -sL https://standards-oui.ieee.org/oui/oui.csv -o /tmp/oui.csv
-python3 tools/oui_csv_to_hwdata.py /tmp/oui.csv assets/oui.txt
+python3 tools/make_screenshots.py   # screenshot README (firefox + Pillow)
+python3 tools/make_hero.py          # hero banner (playwright + chromium)
 ```
 
 Diagram arsitektur bukan gambar, tapi **Mermaid** — GitHub merendernya
@@ -426,6 +442,14 @@ dilakukan otomatis:
 ```bash
 python3 tools/sync_diagram.py           # perbarui blok di kedua README
 python3 tools/sync_diagram.py --check   # cek saja (dipakai CI)
+```
+
+Database OUI (`assets/oui.txt`) dipakai image Docker supaya build tidak
+perlu jaringan. Untuk menyegarkan:
+
+```bash
+curl -sL https://standards-oui.ieee.org/oui/oui.csv -o /tmp/oui.csv
+python3 tools/oui_csv_to_hwdata.py /tmp/oui.csv assets/oui.txt
 ```
 
 ## Kontribusi

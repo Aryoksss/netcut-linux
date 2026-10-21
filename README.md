@@ -1,13 +1,27 @@
 # netcut-linux
 
-Per-host bandwidth monitoring & traffic control for your local network on Linux.
+[![CI](https://github.com/Aryoksss/netcut-linux/actions/workflows/test.yml/badge.svg)](https://github.com/Aryoksss/netcut-linux/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/Aryoksss/netcut-linux?sort=semver)](https://github.com/Aryoksss/netcut-linux/releases/latest)
+[![GHCR](https://img.shields.io/badge/ghcr.io-netcut--linux-2496ED?logo=docker&logoColor=white)](https://github.com/Aryoksss/netcut-linux/pkgs/container/netcut-linux)
+[![License](https://img.shields.io/github/license/Aryoksss/netcut-linux)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](#requirements)
 
+Per-host bandwidth monitoring and traffic control for your own local network.
 Inspired by **NetCut** for Windows — the interface and behaviour are similar,
 but it is reimplemented with native Linux tooling.
 
 **English** · [Bahasa Indonesia](README.id.md)
 
-![netcut-linux dashboard](assets/dashboard.png)
+![netcut-linux — per-host bandwidth monitoring and traffic control](assets/hero.png)
+
+> **Use it on devices and networks you own.** Blocking and limiting work
+> through ARP spoofing, a MITM technique that can be abused. See
+> [License](#license).
+
+**Contents** · [Features](#features) · [Installation](#installation) ·
+[Usage](#usage) · [How it works](#how-it-works) ·
+[Known limitations](#known-limitations) · [Tests](#tests) ·
+[Development](#development) · [License](#license)
 
 ## Features
 
@@ -24,11 +38,15 @@ but it is reimplemented with native Linux tooling.
 - **Native Linux app**: launcher, app menu entry, system tray
 - **Automatic WiFi change detection** — rescan when the network changes
 
+The dashboard, running against demo data:
+
+![netcut-linux dashboard](assets/dashboard.png)
+
 ## Installation
 
-### Docker (easiest)
+### Docker (recommended)
 
-The image is published to GHCR, so there's nothing to build:
+The image is published to GHCR, so there is nothing to build:
 
 ```bash
 docker pull ghcr.io/aryoksss/netcut-linux:latest
@@ -42,7 +60,15 @@ docker run -d --name netcut \
 
 The dashboard is up at **http://127.0.0.1:8080**.
 
-If you prefer compose, clone first and use the same image:
+```bash
+docker logs -f netcut     # follow the logs
+docker rm -f netcut       # stop and remove
+```
+
+Available tags: `latest`, version tags (`1.1.1`, `1.1`), and `sha-<commit>`.
+
+<details>
+<summary>Alternative: docker compose</summary>
 
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
@@ -51,7 +77,10 @@ docker compose pull      # fetch the image from GHCR
 docker compose up -d
 ```
 
-Or build it yourself from source (no GHCR):
+</details>
+
+<details>
+<summary>Alternative: build from source</summary>
 
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
@@ -60,20 +89,16 @@ docker compose up -d --build
 ```
 
 The image is fully self-contained — Python, scapy, nftables and the OUI
-database are baked in, so no host filesystem mounts are needed.
+database are baked in, so no host filesystem mounts are needed. The first
+build downloads Debian packages (~1–2 minutes without cache).
 
-```bash
-docker logs -f netcut     # follow the logs
-docker rm -f netcut       # stop it
-```
-
-Available tags: `latest`, version tags (`1.1.1`, `1.1`), and `sha-<commit>`.
+</details>
 
 #### Does it work on the real LAN/WiFi?
 
-Yes — with `--network=host` the container uses the host's interfaces
-directly, so what it sees is your real WiFi/LAN, not the Docker bridge.
-Actual output from the GHCR image above (laptop on WiFi):
+Yes. With `--network=host` the container uses the host's interfaces directly,
+so what it sees is your real WiFi/LAN, not the Docker bridge. Output from the
+GHCR image on a laptop connected over WiFi:
 
 ```
 mode  : capture
@@ -82,33 +107,23 @@ net   : 192.168.1.0/24     <- the real LAN subnet
 hosts : 3                  <- other devices on that network
 ```
 
-One requirement: **Linux**. Docker Desktop (macOS/Windows) runs containers
-inside a VM, so `--network=host` there points at the VM's network, not your
-LAN — ARP spoofing won't reach it. On those platforms use the native mode.
+### Requirements
 
-Two things are required:
+- **Linux.** This is a hard requirement, not a preference: `network_mode: host`
+  on Docker Desktop (macOS/Windows) points at the VM's network instead of your
+  LAN, so ARP spoofing never reaches the real network. On those platforms
+  neither the container nor the native mode can control other devices.
+- **`--network=host`** and **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — ARP
+  spoofing and the relay must run on the host's real interfaces, and the
+  nftables rules need `NET_ADMIN`. Without host networking the container sits
+  in its own network namespace and sees no LAN at all.
+- **Your user in the `docker` group** — otherwise you get `permission denied`
+  talking to the Docker daemon. Fix with `sudo usermod -aG docker $USER`, then
+  log out and back in.
 
-- **`--network=host`** — ARP spoofing and the relay have to work on the
-  host's real interfaces. Without it the container gets its own network
-  namespace and never sees the LAN at all.
-- **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — for packet capture and the
-  nftables rules.
-
-#### Requirements
-
-- **Docker installed**, and your user **must be in the `docker` group** —
-  otherwise: `sudo usermod -aG docker $USER`, then log out and back in.
-  Without it you'll get `permission denied` talking to the Docker daemon.
-- **Linux only.** `network_mode: host` on Docker Desktop (macOS/Windows)
-  uses the network inside a VM, so the container never sees the real LAN —
-  ARP spoofing won't reach the actual network there. On those platforms use
-  the native mode instead (run it with `sudo`).
-- The first build downloads Debian packages (~1–2 minutes without cache).
-  After that the image is cached locally.
-
-One thing to keep in mind: with `--network=host` the container shares the
-host's network namespace, so its nftables rules apply to the host too. That
-is required — without it, other devices' traffic can't be intercepted.
+One consequence worth knowing: with `--network=host` the container shares the
+host's network namespace, so its nftables rules apply to the host too. That is
+required — without it, other devices' traffic cannot be intercepted.
 
 ### Native (launcher)
 
@@ -120,18 +135,16 @@ netcut --doctor       # make sure the environment is ready
 netcut                # open the dashboard + system tray
 ```
 
-`install.sh` verifies the dependencies first and offers to add
-`~/.local/bin` to `~/.bashrc` so `netcut` can be called from anywhere. To
-install the dependencies as well:
+`install.sh` verifies the dependencies first and offers to add `~/.local/bin`
+to `~/.bashrc` so `netcut` can be called from anywhere. The launcher lands in
+`~/.local/bin/netcut` and the app appears in your application menu. To install
+the dependencies as well:
 
 ```bash
 sudo ./install.sh --with-deps
 ```
 
-The launcher is installed to `~/.local/bin/netcut` and the app appears in your
-application menu.
-
-Without installing:
+Without installing anything:
 
 ```bash
 ./netcut.py --web      # dashboard at http://127.0.0.1:8080
@@ -145,8 +158,8 @@ Without installing:
 | nftables | `nftables` | `nftables` |
 | OUI database | `hwdata` | `hwdata` |
 
-`netcut --doctor` checks all of these at once, together with your
-privileges and the mode that will be used.
+`netcut --doctor` checks all of these at once, together with your privileges
+and the mode that will be used.
 
 ### Privileges
 
@@ -160,13 +173,13 @@ Blocking and limiting other devices requires `CAP_NET_RAW` (capture) and
 
 The active mode is shown in the dashboard header: `capture` (full) or
 `fallback-no-root` (limited). In fallback mode the dashboard shows an amber
-banner and the Block/Limit buttons are disabled up front, so nothing fails
-on click without an explanation. `netcut --doctor` tells you how to enable
-the full mode.
+banner and the Block/Limit buttons are disabled up front, so nothing fails on
+click without an explanation. `netcut --doctor` tells you how to enable the
+full mode.
 
 ## Usage
 
-### CLI
+### Launcher
 
 ```bash
 netcut                          # open web GUI + system tray
@@ -176,15 +189,22 @@ netcut --status                 # server status (URL, mode, host count)
 netcut --stop                   # stop the server
 netcut --port 8090              # use a different port
 netcut --no-tray                # run the server without a tray icon
+netcut --version                # print the version
 netcut --help                   # help
+```
 
-sudo ./netcut.py --once         # single snapshot
-sudo ./netcut.py --json         # JSON output
-sudo ./netcut.py --scan         # ARP scan
-sudo ./netcut.py --block 192.168.1.50      # block a device
-sudo ./netcut.py --cut 192.168.1.50        # cut a device's connection
-sudo ./netcut.py --limit 192.168.1.50 512  # limit to 512 kbps
-sudo ./netcut.py --unblock 192.168.1.50    # remove block
+### Direct script
+
+Useful for scripting or when you skip the launcher. These need root:
+
+```bash
+sudo ./netcut.py --once                     # single snapshot
+sudo ./netcut.py --json                     # JSON output
+sudo ./netcut.py --scan                     # ARP scan
+sudo ./netcut.py --block 192.168.1.50       # block a device
+sudo ./netcut.py --cut 192.168.1.50         # cut a device's connection
+sudo ./netcut.py --limit 192.168.1.50 512   # limit to 512 kbps
+sudo ./netcut.py --unblock 192.168.1.50     # remove block
 sudo ./netcut.py --list-rules               # active nftables rules
 ```
 
@@ -340,15 +360,18 @@ victim is told the gateway lives at the laptop's MAC, so its traffic is
 redirected to the laptop — and only then can it be dropped or rate-limited
 here.
 
-- **Block** mode → packets reach the laptop and are dropped
-- **Limit** mode → packets reach the laptop, are forwarded to the gateway,
-  but rate-limited
+**Packet flow** — devices → router is the normal path. After the ARP spoof:
+devices → laptop, the sniffer counts bytes, nftables decides, the relay
+forwards to the gateway.
 
-| | |
-|---|---|
-| **Packet flow** | Devices → router: the normal path · After ARP spoof: devices → laptop · Sniffer counts bytes → nftables → relay · Relay forwards to the gateway |
-| **Operating modes** | `capture` — full monitoring + control · `fallback-no-root` — per-interface totals · The active mode shows in the dashboard header · Automatic rescan when the WiFi changes |
-| **Requirements** | `CAP_NET_RAW` — packet capture · `CAP_NET_ADMIN` — nftables rules · Alternative: docker container + `--network=host` · Dependencies: scapy, nftables, hwdata |
+**Operating modes** — `capture` gives full monitoring and control;
+`fallback-no-root` gives per-interface totals only. The active mode is shown
+in the dashboard header, and the tool rescans automatically when the WiFi
+changes.
+
+**Privileges** — `CAP_NET_RAW` for packet capture, `CAP_NET_ADMIN` for the
+nftables rules. The container path supplies both; the native path needs
+`sudo` or those capabilities.
 
 ## Known limitations
 
@@ -389,33 +412,25 @@ the new subnet.
 ## Tests
 
 ```bash
-python3 test_parser.py     # 9 unit tests, no root required
-sudo python3 test_suite.py # 28 end-to-end tests on an isolated virtual network
+python3 test_parser.py             # 9 unit tests, no root required
+sudo python3 test_suite.py         # end-to-end tests on an isolated virtual network
 python3 tools/ui_test.py --serve   # 44 dashboard UI tests (needs playwright)
 ```
 
-The end-to-end tests use `veth` + network namespaces so they never touch the
-host network, and they are skipped automatically when `CAP_NET_ADMIN` is not
-available.
+`test_suite.py` defines 28 checks; the ones that need `CAP_NET_ADMIN` or
+working forwarding between namespaces are skipped automatically, so a
+restricted host runs 21 of them. The end-to-end tests use `veth` + network
+namespaces and never touch the host network. The UI tests drive Chromium
+(Playwright) against a demo server filled with synthetic data.
 
-The UI tests drive Chromium (Playwright) against a demo server filled with
-synthetic data — they never touch a real network.
+## Development
 
-## Regenerating screenshots
-
-The images in this README are rendered from the real dashboard HTML using
-synthetic demo data, so they contain no one's SSID or MAC addresses:
-
-```bash
-python3 tools/make_screenshots.py   # requires firefox + Pillow
-```
-
-The OUI database (`assets/oui.txt`) is bundled so the Docker image builds
-without network access. To refresh it:
+Screenshots and the hero banner are rendered from real HTML with synthetic
+demo data, so they contain no one's SSID or MAC addresses:
 
 ```bash
-curl -sL https://standards-oui.ieee.org/oui/oui.csv -o /tmp/oui.csv
-python3 tools/oui_csv_to_hwdata.py /tmp/oui.csv assets/oui.txt
+python3 tools/make_screenshots.py   # README screenshots (firefox + Pillow)
+python3 tools/make_hero.py          # hero banner (playwright + chromium)
 ```
 
 The architecture diagram is not an image but **Mermaid** — GitHub renders it
@@ -427,6 +442,14 @@ block, the sync is automated:
 ```bash
 python3 tools/sync_diagram.py           # update the block in both READMEs
 python3 tools/sync_diagram.py --check   # check only (used by CI)
+```
+
+The OUI database (`assets/oui.txt`) is bundled so the Docker image builds
+without network access. To refresh it:
+
+```bash
+curl -sL https://standards-oui.ieee.org/oui/oui.csv -o /tmp/oui.csv
+python3 tools/oui_csv_to_hwdata.py /tmp/oui.csv assets/oui.txt
 ```
 
 ## Contributing

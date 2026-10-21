@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 520px; }
+  body {
+    font-family: "Noto Sans", "Liberation Sans", sans-serif;
+    background: #0e1016; color: #e6edf6; position: relative; overflow: hidden;
+  }
+  .glow-a, .glow-b { position: absolute; border-radius: 50%; filter: blur(70px); pointer-events: none; }
+  .glow-a { width: 640px; height: 640px; left: -230px; top: -320px;
+            background: radial-gradient(circle, rgba(90,169,255,.30), transparent 70%); }
+  .glow-b { width: 600px; height: 600px; right: -200px; bottom: -340px;
+            background: radial-gradient(circle, rgba(78,201,138,.18), transparent 70%); }
+  .grid {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(126,134,152,.22) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: radial-gradient(ellipse 72% 85% at 28% 42%, #000 28%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 72% 85% at 28% 42%, #000 28%, transparent 100%);
+  }
+  .hair { position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(90,169,255,.45), transparent); }
+
+  .wrap { position: relative; height: 100%; display: flex; align-items: center;
+          gap: 44px; padding: 0 56px; }
+
+  .left { width: 560px; flex: none; }
+  .pill {
+    display: inline-block; font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: .17em; text-transform: uppercase;
+    color: #9ecbff; background: rgba(90,169,255,.12);
+    border: 1px solid rgba(90,169,255,.36); border-radius: 999px;
+    padding: 7px 14px; margin-bottom: 24px;
+  }
+  h1 { font-size: 68px; line-height: 1; font-weight: 700; letter-spacing: -2.2px;
+       margin-bottom: 20px; white-space: nowrap; }
+  h1 .muted { color: #79818f; font-weight: 600; letter-spacing: -1.6px; }
+  .tag { font-size: 22px; line-height: 1.5; color: #b3bccb; max-width: 520px; margin-bottom: 28px; }
+  .tag b { color: #e8eef7; font-weight: 600; }
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; }
+  .chip {
+    font-family: "JetBrains Mono", monospace; font-size: 13px;
+    color: #d3dbe8; background: #1a1e28; border: 1px solid #39415380;
+    border-radius: 8px; padding: 7px 12px;
+  }
+  .chip.hot { color: #fff; background: rgba(239,95,107,.22); border-color: rgba(239,95,107,.62); }
+
+  .card {
+    flex: 1; min-width: 0; background: #14171f;
+    border: 1px solid #2c3342; border-radius: 16px;
+    box-shadow: 0 34px 80px rgba(0,0,0,.60), 0 0 0 1px rgba(255,255,255,.02) inset;
+    overflow: hidden;
+  }
+  .card-top { display: flex; align-items: center; gap: 11px;
+              padding: 15px 20px; border-bottom: 1px solid #2c3342; background: #12151d; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #4ec98a;
+         box-shadow: 0 0 10px rgba(78,201,138,.85); }
+  .card-top .t { font-family: "JetBrains Mono", monospace; font-size: 13px;
+                 letter-spacing: .13em; text-transform: uppercase; color: #a4adbd; }
+  .card-top .n { font-family: "JetBrains Mono", monospace; font-size: 12.5px;
+                 color: #7fbcf7; margin-left: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-family: "JetBrains Mono", monospace; }
+  th { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase;
+       color: #8d96a7; font-weight: 500; text-align: left;
+       padding: 12px 20px 9px; border-bottom: 1px solid #232935; }
+  td { padding: 13px 20px; border-bottom: 1px solid #1c212b; vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  td.ip { font-size: 15px; color: #eef3fa; }
+  td.ip .mac { font-size: 11.5px; color: #a3acbc; margin-top: 3px; letter-spacing: .02em; white-space: nowrap; }
+  .bar { width: 100%; height: 6px; border-radius: 3px; background: #232935; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 3px; background: #5aa9ff; }
+  .bar i.g { background: #4ec98a; }
+  td.rate { font-size: 13px; color: #c2cbd9; text-align: right; white-space: nowrap; }
+  .tag-b { font-family: "JetBrains Mono", monospace; font-size: 11.5px;
+           letter-spacing: .06em; padding: 4px 9px; border-radius: 6px; white-space: nowrap; }
+  .b-blk { color: #ffdde1; background: rgba(239,95,107,.20); border: 1px solid rgba(239,95,107,.52); }
+  .b-lim { color: #ffeccb; background: rgba(240,180,41,.16); border: 1px solid rgba(240,180,41,.48); }
+</style>
+</head>
+<body>
+  <div class="glow-a"></div>
+  <div class="glow-b"></div>
+  <div class="grid"></div>
+
+  <div class="wrap">
+    <div class="left">
+      <div class="pill">Linux · Docker · MIT</div>
+      <h1>netcut<span class="muted">-linux</span></h1>
+      <p class="tag">Per-host bandwidth monitoring and traffic control
+        for <b>your own</b> local network.</p>
+      <div class="chips">
+        <span class="chip hot">block</span>
+        <span class="chip">limit</span>
+        <span class="chip">bulk actions</span>
+        <span class="chip">REST API</span>
+        <span class="chip">system tray</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="dot"></span>
+        <span class="t">capture</span>
+        <span class="n">wlp0s20f3 · 192.168.1.0/24</span>
+      </div>
+      <table>
+        <tr>
+          <th style="width:50%">host</th>
+          <th style="width:28%">traffic</th>
+          <th style="width:22%; text-align:right">rate</th>
+        </tr>
+        <tr>
+          <td class="ip">192.168.1.42<div class="mac">a4:2b:8c:11:0e:5d · Samsung</div></td>
+          <td><div class="bar"><i style="width:100%"></i></div></td>
+          <td class="rate">8.4 MB/s</td>
+        </tr>
+        <tr>
+          <td class="ip">192.168.1.57<div class="mac">f0:9f:c2:7a:31:88 · Apple</div></td>
+          <td><div class="bar"><i class="g" style="width:37%"></i></div></td>
+          <td class="rate">3.1 MB/s</td>
+        </tr>
+        <tr>
+          <td class="ip">192.168.1.73<div class="mac">3c:22:fb:9d:2e:41 · Xiaomi</div></td>
+          <td><div class="bar"></div></td>
+          <td class="rate"><span class="tag-b b-blk">blocked</span></td>
+        </tr>
+        <tr>
+          <td class="ip">192.168.1.91<div class="mac">b8:27:eb:4f:60:12 · Raspberry Pi</div></td>
+          <td><div class="bar"><i style="width:6%"></i></div></td>
+          <td class="rate"><span class="tag-b b-lim">512 kbps</span></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="hair"></div>
+</body>
+</html>
