@@ -61,6 +61,22 @@ Two things are required:
 - **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — for packet capture and the
   nftables rules.
 
+#### Requirements
+
+- **Docker installed**, and your user **must be in the `docker` group** —
+  otherwise: `sudo usermod -aG docker $USER`, then log out and back in.
+  Without it you'll get `permission denied` talking to the Docker daemon.
+- **Linux only.** `network_mode: host` on Docker Desktop (macOS/Windows)
+  uses the network inside a VM, so the container never sees the real LAN —
+  ARP spoofing won't reach the actual network there. On those platforms use
+  the native mode instead (run it with `sudo`).
+- The first build downloads Debian packages (~1–2 minutes without cache).
+  After that the image is cached locally.
+
+One thing to keep in mind: with `--network=host` the container shares the
+host's network namespace, so its nftables rules apply to the host too. That
+is required — without it, other devices' traffic can't be intercepted.
+
 ### Native (launcher)
 
 ```bash

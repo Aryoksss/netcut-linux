@@ -61,6 +61,22 @@ Dua hal yang wajib:
 - **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — untuk capture paket dan
   aturan nftables.
 
+#### Syarat
+
+- **Docker terpasang**, dan user kamu **ada di grup `docker`** — kalau belum:
+  `sudo usermod -aG docker $USER` lalu logout-login. Tanpa itu hasilnya
+  `permission denied` saat menghubungi Docker daemon.
+- **Linux saja.** `network_mode: host` di Docker Desktop (macOS/Windows)
+  memakai jaringan di dalam VM, jadi container tidak melihat LAN asli —
+  ARP spoofing tidak akan bekerja ke jaringan sebenarnya. Di platform itu,
+  pakai mode native saja (running dengan `sudo`).
+- Build pertama mengunduh paket Debian (~1–2 menit tanpa cache). Setelah
+  itu image-nya tersimpan lokal.
+
+Perlu diperhatikan: dengan `--network=host`, container berbagi network
+namespace dengan host, jadi aturan nftables-nya ikut berlaku untuk host.
+Itu memang dibutuhkan — tanpa itu trafik device lain tidak bisa diintervensi.
+
 ### Native (launcher)
 
 ```bash
