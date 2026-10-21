@@ -3,7 +3,7 @@
 
 Dijalankan di container dengan:
   docker run --rm --cap-add=NET_RAW --cap-add=NET_ADMIN --cap-add=SYS_ADMIN \
-    -v ...:/app fedora:44 /usr/bin/python3.14 /app/test_suite.py
+    -v ...:/app fedora:44 $(command -v python3) /app/test_suite.py
 
 menguji:
   1. parser frame (IPv4, ARP, remote-vs-LAN, peer traffic, no double count)
@@ -126,7 +126,8 @@ def setup_vnet():
                  "s.bind(('0.0.0.0',9999))\nb=b'x'*4096\n"
                  "while True:\n d,a=s.recvfrom(2048)\n"
                  " for _ in range(500): s.sendto(b,a)\n")
-    subprocess.Popen(["setsid", "ip", "netns", "exec", NS_R, "/usr/bin/python3.14", "/tmp/nc_srv.py"],
+    subprocess.Popen(["setsid", "ip", "netns", "exec", NS_R,
+                      sys.executable, "/tmp/nc_srv.py"],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     time.sleep(2)
 
@@ -140,7 +141,7 @@ def victim_dl(dur=5):
                  " try: x,_=s.recvfrom(8192); t+=len(x)\n"
                  " except socket.timeout: break\nprint(t)\n")
     rc, out = sh(f"ip netns exec {NS_V} timeout {dur+5} "
-                 f"/usr/bin/python3.14 /tmp/nc_cli.py {R_IP} {dur}")
+                 f"{sys.executable} /tmp/nc_cli.py {R_IP} {dur}")
     for line in out.splitlines():
         if line.strip().isdigit():
             return int(line.strip())

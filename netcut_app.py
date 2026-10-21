@@ -218,6 +218,14 @@ class Server:
                            capture_output=True, timeout=30)
         except (OSError, subprocess.SubprocessError):
             pass
+        # /usr, /lib, /lib64 di-mount dari host, jadi interpreter Python di
+        # dalam container sama dengan milik host. Karena itu pakai
+        # sys.executable, bukan path hardcode - kalau host pakai Python 3.13,
+        # path 3.14 tidak ada dan container gagal start.
+        py_bin = sys.executable or "python3"
+        py_tag = f"python{sys.version_info.major}.{sys.version_info.minor}"
+        user_site = os.path.join(os.path.expanduser("~"), ".local", "lib",
+                                  py_tag, "site-packages")
         cmd = [
             "docker", "run", "-d",
             "--name", self.CONTAINER,
@@ -230,10 +238,9 @@ class Server:
                   f"{os.path.expanduser('~')}/.local:ro",
             "-v", f"{APP_DIR}:/app",
             "-w", "/app",
-            "-e", "PYTHONPATH=" + os.path.expanduser("~") +
-                 "/.local/lib/python3.14/site-packages",
+            "-e", "PYTHONPATH=" + user_site,
             self.IMAGE,
-            "/usr/bin/python3.14", "/app/netcut.py", "--web", "--web-port", str(PORT),
+            py_bin, "/app/netcut.py", "--web", "--web-port", str(PORT),
         ]
         log(f"menjalankan: {' '.join(cmd[:8])} … (docker)")
         try:
