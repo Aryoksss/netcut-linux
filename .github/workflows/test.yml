@@ -25,6 +25,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-scapy nftables iproute2
+      - name: Diagnose network environment
+        run: |
+          echo "ip_forward      = $(cat /proc/sys/net/ipv4/ip_forward)"
+          echo "all.forwarding  = $(cat /proc/sys/net/ipv4/conf/all/forwarding)"
+          echo "rp_filter       = all:$(cat /proc/sys/net/ipv4/conf/all/rp_filter) default:$(cat /proc/sys/net/ipv4/conf/default/rp_filter)"
+          echo "--- iptables FORWARD ---"
+          sudo iptables -S FORWARD 2>&1 | head -5 || true
+          echo "--- nft ruleset ---"
+          sudo nft list ruleset 2>&1 | head -15 || true
       - name: Run end-to-end tests
         run: |
           sudo python3 -m pip install --break-system-packages scapy

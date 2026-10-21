@@ -40,6 +40,40 @@ def sh(cmd):
     return p.returncode, (p.stdout + p.stderr).strip()
 
 
+def _read(path: str) -> str:
+    try:
+        with open(path) as fh:
+            return fh.read().strip()
+    except OSError:
+        return "?"
+
+
+def net_diag() -> str:
+    """Ringkasan state jaringan - dipakai saat tes gagal, biar jelas
+    environment-nya yang bermasalah atau kodenya."""
+    lines = [
+        f"ip_forward={_read('/proc/sys/net/ipv4/ip_forward')}",
+        f"all.forwarding={_read('/proc/sys/net/ipv4/conf/all/forwarding')}",
+        f"rp_filter all/default="
+        f"{_read('/proc/sys/net/ipv4/conf/all/rp_filter')}/"
+        f"{_read('/proc/sys/net/ipv4/conf/default/rp_filter')}",
+    ]
+    rc, out = sh("iptables -S FORWARD 2>/dev/null | head -3")
+    lines.append(f"FORWARD: {out if rc == 0 else 'iptables tidak tersedia'}")
+    rc, out = sh("nft list ruleset 2>/dev/null | head -6")
+    if rc == 0 and out:
+        lines.append("nft: " + out.replace("\n", " | "))
+    rc, out = sh("ip -br link show vh1 vh2 2>/dev/null")
+    if out:
+        lines.append(out.replace("\n", " | "))
+    return "\n        ".join(lines)
+
+
+def forwarding_ready() -> bool:
+    """True kalau forwarding antar namespace benar-benar bisa dipakai."""
+    return _read("/proc/sys/net/ipv4/ip_forward") == "1"
+
+
 # ---------------------------------------------------------------- parser
 def test_parser():
     print("\n[1] PARSER", flush=True)
@@ -105,19 +139,42 @@ def setup_vnet():
     if rc != 0:
         raise PermissionError(out or "tidak bisa membuat network namespace")
     sh(f"ip netns add {NS_R}")
+
+    # rp_filter dimatikan: reply dari namespace router sampai ke vh1, tapi
+    # reverse path-nya lewat vh2. Dengan rp_filter strict (default Ubuntu)
+    # paket itu dibuang dan seluruh tes trafik gagal. Test ini memang butuh
+    # forwarding lintas namespace, jadi filter ini harus longgar.
+    def rp_off(ns: str = "") -> None:
+        pre = f"ip netns exec {ns} " if ns else ""
+        sh(f"sysctl -w {pre}net.ipv4.conf.all.rp_filter=0 >/dev/null")
+        sh(f"sysctl -w {pre}net.ipv4.conf.default.rp_filter=0 >/dev/null")
+
+    rp_off()
+    rp_off(NS_V)
+    rp_off(NS_R)
+
     sh(f"ip link add vh1 type veth peer name vh1v")
     sh(f"ip link add vh2 type veth peer name vh2r")
     sh(f"ip link set vh1v netns {NS_V}; ip link set vh2r netns {NS_R}")
     sh(f"ip addr add {V_GW}/24 dev vh1; ip link set vh1 up")
     sh(f"ip addr add {R_GW}/24 dev vh2; ip link set vh2 up")
-    sh("sysctl -w net.ipv4.ip_forward=1 >/dev/null")
+    sh("sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1")
+    if _read("/proc/sys/net/ipv4/ip_forward") != "1":
+        raise PermissionError("tidak bisa menyalakan net.ipv4.ip_forward")
+    sh("sysctl -w net.ipv4.conf.vh1.rp_filter=0 >/dev/null")
+    sh("sysctl -w net.ipv4.conf.vh2.rp_filter=0 >/dev/null")
     sh(f"ip netns exec {NS_V} ip link set lo up")
     sh(f"ip netns exec {NS_V} ip addr add {V_IP}/24 dev vh1v")
     sh(f"ip netns exec {NS_V} ip link set vh1v address {V_MAC}")
     sh(f"ip netns exec {NS_V} ip link set vh1v up")
     sh(f"ip netns exec {NS_V} ip route add default via {V_GW} dev vh1v")
+    sh(f"ip netns exec {NS_V} sysctl -w net.ipv4.conf.vh1v.rp_filter=0 >/dev/null")
     sh(f"ip netns exec {NS_R} ip link set lo up")
     sh(f"ip netns exec {NS_R} ip addr add {R_IP}/24 dev vh2r")
+    sh(f"ip netns exec {NS_R} ip link set vh2r address {R_MAC}")
+    sh(f"ip netns exec {NS_R} ip link set vh2r up")
+    sh(f"ip netns exec {NS_R} ip route add default via {R_GW} dev vh2r")
+    sh(f"ip netns exec {NS_R} sysctl -w net.ipv4.conf.vh2r.rp_filter=0 >/dev/null")
     sh(f"ip netns exec {NS_R} ip link set vh2r address {R_MAC}")
     sh(f"ip netns exec {NS_R} ip link set vh2r up")
     sh(f"ip netns exec {NS_R} ip route add default via {R_GW} dev vh2r")
@@ -172,6 +229,15 @@ def test_vnet():
         print("        jalankan dengan: sudo python3 test_suite.py", flush=True)
         return
     ok, detail = victim_ping()
+    if not ok and not forwarding_ready():
+        # Environment ini tidak bisa mem-forward antar namespace (mis.
+        # /proc/sys read-only di runner CI). Tes trafik tidak mungkin jalan,
+        # jadi lewati dengan alasan - bukan gagal 6 kali tanpa penjelasan.
+        print("  SKIP  forwarding antar namespace tidak aktif di environment ini",
+              flush=True)
+        print("        " + net_diag(), flush=True)
+        sh(f"ip netns del {NS_V} 2>/dev/null; ip netns del {NS_R} 2>/dev/null")
+        return
     check("baseline konektivitas korban", ok, detail)
 
     import netcut
@@ -185,6 +251,8 @@ def test_vnet():
     print("\n[3] ARP SPOOF + RELAY", flush=True)
     base = victim_dl(5)
     check("baseline traffic", base > 0, f"{base} byte")
+    if base <= 0:
+        print("        " + net_diag(), flush=True)
     ok = sp.poison(V_IP, victim_mac=V_MAC, mode="relay")
     check("poison victim", ok)
     sp.start()
