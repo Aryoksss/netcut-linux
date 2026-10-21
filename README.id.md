@@ -280,6 +280,16 @@ laptop — lalu baru bisa di-drop atau di-rate-limit di sini.
 - **Limit memakai token bucket**, jadi ada burst di awal. Nilai rata-rata
   aktual sedikit di bawah nominal.
 
+- **Firewall host yang membuang trafik forward membuat Limit tidak berlaku.**
+  Di Linux, verdict `accept` di satu rantai nftables **tidak** menghentikan
+  hook — rantai lain yang lebih lambat tetap jalan. Kalau host punya rantai
+  `forward` dengan `policy drop` (default Ubuntu & Debian), trafik korban
+  yang dialihkan ke laptop tetap dibuang, sehingga **Limit** jadi
+  seperti **Blokir**. `netcut --doctor` mendeteksi kondisi ini, dan
+  dashboard menampilkan banner peringatan kalauLimit dipasang.
+  Solusinya: pakai **Blokir**, atau longgarkan firewall host (mis. izinkan
+  trafik dari perangkat target).
+
 - Aturan nftables berlaku untuk trafik **milik mesin ini**. Untuk membatasi
   perangkat lain secara permanen, pasang aturan di router.
 

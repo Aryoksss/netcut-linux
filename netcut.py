@@ -505,6 +505,43 @@ class TrafficControl:
             return 1, str(exc)
         return proc.returncode, (proc.stdout + proc.stderr).strip()
 
+    def forward_policy_blocks(self) -> str:
+        """Cek apakah firewall host membuang trafik yang di-forward.
+
+        Penting: verdict "accept" di chain netcut TIDAK menghentikan hook.
+        Kalau host punya chain forward dengan policy drop (default Ubuntu &
+        Debian), trafik relay tetap dibuang - Limit jadi diam-diam tidak
+        berlaku, dan korban kehilangan koneksi sepenuhnya.
+
+        Return: kosong kalau tidak bermasalah, atau pesan singkat.
+        """
+        rc, out = self._nft(["list", "ruleset"])
+        if rc == 0 and out:
+            family = table = chain = None
+            for line in out.splitlines():
+                parts = line.strip().split()
+                if parts[:1] == ["table"] and len(parts) >= 3:
+                    family, table = parts[1], parts[2]
+                    chain = None
+                    continue
+                if parts[:1] == ["chain"] and len(parts) >= 2:
+                    chain = parts[1].rstrip("{").strip()
+                    continue
+                if ("hook forward" in line and "policy drop" in line
+                        and family and table and chain):
+                    return (f"Firewall host ({family} {table} {chain}) memakai "
+                            f"policy drop untuk trafik forward")
+        # fallback: iptables
+        try:
+            proc = subprocess.run(["iptables", "-S", "FORWARD"],
+                                  capture_output=True, text=True, timeout=8)
+            first = proc.stdout.splitlines()[0] if proc.stdout else ""
+            if first.startswith("-P FORWARD DROP"):
+                return "Firewall host (iptables FORWARD) memakai policy drop"
+        except (OSError, subprocess.SubprocessError, IndexError):
+            pass
+        return ""
+
     def ensure_table(self) -> None:
         self._nft(["add", "table", "inet", NFT_TABLE])
         self._nft(["add", "chain", "inet", NFT_TABLE, NFT_CHAIN, "{ type filter hook output priority 0 ; policy accept ; }"])
@@ -854,6 +891,12 @@ def main() -> int:
             ip, kbps = args.limit
             ok = tc.limit(ip, int(kbps), spoofer=spoofer)
             print(f"{'DRY-RUN: ' if args.dry_run else ''}limit {ip} -> {kbps} kbps: {'ok' if ok else 'gagal'}")
+            blocked_by = tc.forward_policy_blocks()
+            if ok and blocked_by:
+                print(f"  PERINGATAN: {blocked_by}.")
+                print("  Verdict accept tidak menghentikan hook, jadi trafik korban")
+                print("  tetap dibuang dan Limit tidak berlaku. Gunakan Blokir,")
+                print("  atau longgarkan firewall host.")
             if spoofer is not None and ok:
                 print("  ARP spoof + relay aktif: trafik korban diteruskan ke gateway,")
                 print("  tetapi di-rate-limit di laptop. Ctrl-C untuk mengembalikan.")

@@ -535,6 +535,17 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
     <span class="badge" id="uptimeBadge" title="Waktu aktif">0s</span>
   </div>
 
+  <div id="fwWarn" class="fallback" hidden>
+    <svg class="ic"><use href="#i-alert"/></svg>
+    <div>
+      <b>Firewall host membuang trafik forward &mdash; Limit tidak berlaku.</b>
+      <span id="fwWarnText"></span> Verdict <code>accept</code> di rantai
+      netcut tidak menghentikan hook, jadi aturan firewall host tetap
+      membuang paketnya. Yang bisa dilakukan: pakai <b>Blokir</b>, atau
+      longgarkan firewall host (mis. izinkan trafik dari perangkat target).
+    </div>
+  </div>
+
   <div id="fallback" class="fallback" hidden>
     <svg class="ic"><use href="#i-alert"/></svg>
     <div>
@@ -637,6 +648,7 @@ const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 const S = {
   hosts: [], blocked: new Set(), limited: new Map(), spoofing: new Set(),
   notes: {}, net: {}, iface: "", mode: "", uptime: 0, stale: false,
+  forwardBlocked: "",
   packets: 0, dropped: 0, rxRate: 0, txRate: 0, peerRate: 0,
   sortKey: "rx_rate", sortDir: -1, query: "", filter: "all",
   selected: new Set(), paused: false, online: true, scanning: false,
@@ -727,6 +739,7 @@ function applySnapshot(d) {
   S.limited = new Map(Object.entries(d.limited || {}));
   S.spoofing = new Set((d.spoofing || []).map(s => s.ip));
   S.notes = d.notes || {};
+  S.forwardBlocked = d.forward_blocked || "";
   S.net = d.net || {};
   S.iface = d.iface || "";
   S.mode = d.mode || "";
@@ -906,6 +919,14 @@ function render() {
     }
   } else {
     scanBadge.hidden = true;
+  }
+
+  const fwWarn = $("#fwWarn");
+  if (S.forwardBlocked) {
+    fwWarn.hidden = false;
+    setText($("#fwWarnText"), S.forwardBlocked + ".");
+  } else {
+    fwWarn.hidden = true;
   }
 
   const fallback = S.mode !== "capture";
@@ -1480,6 +1501,7 @@ class WebState:
         self._last_net_check = 0.0
         self._last_prune = 0.0
         self.net_info: dict = {}
+        self.forward_block = ""
         self._tc_lock = threading.Lock()
 
     # -- capture loop -------------------------------------------------
@@ -1735,6 +1757,15 @@ class WebState:
                     return
                 self.limited_hosts[ip] = kbps
                 res[ip] = {"ok": True}
+                # Kalau firewall host membuang trafik forward, limit tidak
+                # akan berlaku although rule-nya terpasang.
+                block = self.tc.forward_policy_blocks()
+                if block:
+                    self.forward_block = block
+                    res[ip]["warning"] = (
+                        f"{block}. Verdict accept tidak menghentikan hook, "
+                        "jadi trafik korban tetap dibuang dan Limit tidak "
+                        "berlaku. Pakai Blokir, atau longgarkan firewall host.")
                 # cek apakah router menerima ARP spoof kita. Kalau tidak,
                 # balasan download bypass laptop sehingga limit hanya
                 # berlaku untuk arah upload.
@@ -1882,6 +1913,7 @@ class WebState:
             "blocked": sorted(self.blocked_hosts),
             "limited": dict(self.limited_hosts),
             "notes": dict(self.notes),
+            "forward_blocked": self.forward_block,
             "spoofing": self.spoofer.status() if self.spoofer else [],
             "interfaces": _list_ifaces(),
         }

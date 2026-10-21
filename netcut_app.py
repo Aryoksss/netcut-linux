@@ -485,6 +485,21 @@ def doctor() -> int:
     else:
         print(f"    docker       : {C.yellow('tidak ada / tidak bisa dipakai')}")
 
+    # firewall host: menentukan apakah mode Limit bisa bekerja
+    try:
+        import netcut as _nc
+        blk = _nc.TrafficControl("lo").forward_policy_blocks()
+    except Exception:
+        blk = ""
+    print(f"\n  {C.bold('firewall host')}")
+    if blk:
+        print(f"    forward     : {C.yellow('policy drop')}")
+        print(f"      {C.dim(blk)}")
+        print(f"      {C.dim('Limit tidak akan berlaku (trafik korban dibuang).')}")
+        print(f"      {C.dim('Yang bisa: pakai Blokir, atau longgarkan firewall host.')}")
+    else:
+        print(f"    forward     : {C.green('trafik forward diizinkan')}")
+
     print(f"\n  {C.bold('mode yang akan dipakai')}")
     if caps:
         print(f"    {C.green('capture')}"

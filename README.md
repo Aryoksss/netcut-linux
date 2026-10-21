@@ -281,6 +281,15 @@ here.
 - **Limiting uses a token bucket**, so there is a burst at the start. The
   actual average ends up slightly below the nominal value.
 
+- **A host firewall that drops forwarded traffic makes limiting ineffective.**
+  In Linux, an `accept` verdict in one nftables chain does **not** stop the
+  hook — later chains still run. If the host has a `forward` chain with
+  `policy drop` (the default on Ubuntu & Debian), the victim's diverted
+  traffic is still discarded, so **Limit** behaves like **Block**.
+  `netcut --doctor` detects this, and the dashboard shows a warning banner
+  once a limit is installed. Workarounds: use **Block**, or relax the host
+  firewall (e.g. allow traffic from the target device).
+
 - nftables rules apply to **this machine's own traffic**. To permanently
   constrain other devices, put rules on the router.
 

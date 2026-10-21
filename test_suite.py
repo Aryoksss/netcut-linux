@@ -14,6 +14,7 @@ menguji:
   6. Cleanup: rule & ARP dikembalikan
 """
 import os
+import re
 import socket
 import struct
 import subprocess
@@ -72,6 +73,67 @@ def net_diag() -> str:
 def forwarding_ready() -> bool:
     """True kalau forwarding antar namespace benar-benar bisa dipakai."""
     return _read("/proc/sys/net/ipv4/ip_forward") == "1"
+
+
+def _forward_drop_chains() -> list[tuple[str, str, str]]:
+    """Cari base chain hook forward yang policy-nya drop.
+
+    Penting: verdict 'accept' di chain lain TIDAK menghentikan hook, jadi
+    chain filter (priority -100, policy drop) tetap membuang paket
+    afterwards. Tanpa accept rule di chain itu, trafik uji selalu hilang -
+    persis seperti yang terjadi di runner CI (FORWARD policy DROP).
+    """
+    rc, out = sh("nft list ruleset 2>/dev/null")
+    if rc != 0:
+        return []
+    found: list[tuple[str, str, str]] = []
+    family = table = chain = None
+    for line in out.splitlines():
+        m = re.match(r"\s*table\s+(\w+)\s+(\w+)", line)
+        if m:
+            family, table = m.group(1), m.group(2)
+            chain = None
+            continue
+        m = re.match(r"\s*chain\s+(\w+)", line)
+        if m:
+            chain = m.group(1)
+            continue
+        if ("hook forward" in line and "policy drop" in line
+                and family and table and chain):
+            found.append((family, table, chain))
+    return found
+
+
+def _forward_allow() -> None:
+    """Izinkan trafik uji lewat firewall host.
+
+    Rule ini hanya untuk test: subnet 10.10.0.0/24 <-> 10.20.0.0/24 yang
+    dibuat oleh setup_vnet. Dihapus lagi di teardown.
+    """
+    for fam, tbl, ch in _forward_drop_chains():
+        for src, dst in ((V_IP, R_IP), (R_IP, V_IP)):
+            sh(f"nft insert rule {fam} {tbl} {ch} ip saddr {src} "
+               f"ip daddr {dst} accept comment \"netcut-selftest\"")
+        print(f"  (selftest) accept rule di {fam} {tbl} {ch}", flush=True)
+    # fallback untuk host yang pakai iptables tanpa nft
+    rc, _ = sh("command -v iptables")
+    if rc == 0:
+        for src, dst in ((V_IP, R_IP), (R_IP, V_IP)):
+            sh(f"iptables -I FORWARD 1 -s {src} -d {dst} -j ACCEPT")
+        print("  (selftest) accept rule di iptables FORWARD", flush=True)
+
+
+def _forward_disallow() -> None:
+    for fam, tbl, ch in _forward_drop_chains():
+        rc, out = sh(f"nft -a list chain {fam} {tbl} {ch} 2>/dev/null")
+        for line in out.splitlines():
+            if "netcut-selftest" not in line:
+                continue
+            m = re.search(r"# handle (\d+)", line)
+            if m:
+                sh(f"nft delete rule {fam} {tbl} {ch} handle {m.group(1)}")
+    for src, dst in ((V_IP, R_IP), (R_IP, V_IP)):
+        sh(f"iptables -D FORWARD -s {src} -d {dst} -j ACCEPT 2>/dev/null")
 
 
 # ---------------------------------------------------------------- parser
@@ -175,6 +237,9 @@ def setup_vnet():
     sh(f"ip netns exec {NS_R} ip link set vh2r up")
     sh(f"ip netns exec {NS_R} ip route add default via {R_GW} dev vh2r")
     sh(f"ip netns exec {NS_R} sysctl -w net.ipv4.conf.vh2r.rp_filter=0 >/dev/null")
+
+    # firewall host bisa membuang trafik uji (FORWARD policy drop)
+    _forward_allow()
     sh(f"ip netns exec {NS_R} ip link set vh2r address {R_MAC}")
     sh(f"ip netns exec {NS_R} ip link set vh2r up")
     sh(f"ip netns exec {NS_R} ip route add default via {R_GW} dev vh2r")
@@ -291,6 +356,7 @@ def test_vnet():
     live = [l for l in out.splitlines() if "netcut-limit" in l or "netcut-block" in l]
     check("semua rule dibersihkan", not live, f"{len(live)} rule tersisa")
 
+    _forward_disallow()
     sh(f"ip netns del {NS_V} 2>/dev/null; ip netns del {NS_R} 2>/dev/null")
 
 
