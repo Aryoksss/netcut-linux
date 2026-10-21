@@ -26,6 +26,43 @@ namun diimplementasikan ulang dengan tool Linux native.
 
 ## Pemasangan
 
+### Docker (paling gampang)
+
+```bash
+git clone https://github.com/Aryoksss/netcut-linux
+cd netcut-linux
+docker compose up -d
+```
+
+Dashboard langsung jalan di **http://127.0.0.1:8080**. Image-nya mandiri
+saja: Python, scapy, nftables, dan database OUI sudah di dalam, jadi tidak
+perlu mount filesystem host.
+
+```bash
+docker compose logs -f   # lihat log
+docker compose down      # hentikan
+```
+
+Atau tanpa compose:
+
+```bash
+docker build -t netcut-linux .
+docker run --rm -d --name netcut \
+  --network=host \
+  --cap-add=NET_RAW --cap-add=NET_ADMIN \
+  netcut-linux
+```
+
+Dua hal yang wajib:
+
+- **`--network=host`** — ARP spoofing dan relay harus bekerja pada interface
+  host yang asli. Tanpa itu container ada di network namespace sendiri dan
+  tidak akan melihat LAN sama sekali.
+- **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — untuk capture paket dan
+  aturan nftables.
+
+### Native (launcher)
+
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
 cd netcut-linux
@@ -321,6 +358,14 @@ jadi tidak memuat SSID atau MAC jaringan siapa pun:
 
 ```bash
 python3 tools/make_screenshots.py   # butuh firefox + Pillow
+```
+
+Database OUI (`assets/oui.txt`) dipakai image Docker supaya build tidak
+perlu jaringan. Untuk menyegarkan:
+
+```bash
+curl -sL https://standards-oui.ieee.org/oui/oui.csv -o /tmp/oui.csv
+python3 tools/oui_csv_to_hwdata.py /tmp/oui.csv assets/oui.txt
 ```
 
 Diagram arsitektur bukan gambar, tapi **Mermaid** — GitHub merendernya

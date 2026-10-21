@@ -47,6 +47,18 @@ jobs:
       - name: Check diagram is in sync
         run: python3 tools/sync_diagram.py --check
 
+  docker:
+    name: Build image Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -t netcut-linux .
+      - name: Cek isi image
+        run: >
+          docker run --rm --entrypoint sh netcut-linux
+          -c "$(cat tools/check_image.sh)"
+
   ui:
     name: Test UI dashboard
     runs-on: ubuntu-latest

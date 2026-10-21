@@ -38,6 +38,23 @@ Konvensi yang perlu dijaga:
   (Inggris); blok di kedua README di-*sync* dengan
   `python3 tools/sync_diagram.py`. Jangan menyalin diagram manual ke README.
 
+## Image Docker
+
+`Dockerfile` membangun image mandiri: Python, scapy, nftables, dan database
+OUI sudah di dalam image, jadi tidak ada mount filesystem host yang
+dibutuhkan. Yang dibagi dengan host hanya network namespace-nya
+(`--network=host`) — ARP spoofing dan relay harus jalan di interface host.
+
+Kalau menambah dependency sistem, remember dua hal:
+
+- Paket `hwdata` di Debian **tidak** menyertakan `oui.txt`. Database OUI
+  diambil dari `assets/oui.txt` (build context), dengan fallback unduh dari
+  IEEE. Kalau menambah file besar ke `assets/`, cek dulu `.dockerignore`.
+- `tools/oui_csv_to_hwdata.py` mengubah `oui.csv` IEEE jadi format
+  `hwdata` yang dipakai `netcut.py`. Jalankan ulang kalau ingin menyegarkan
+  `assets/oui.txt`.
+
+
 ## Gaya kode
 
 - Type hints di fungsi publik

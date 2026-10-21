@@ -26,6 +26,43 @@ but it is reimplemented with native Linux tooling.
 
 ## Installation
 
+### Docker (easiest)
+
+```bash
+git clone https://github.com/Aryoksss/netcut-linux
+cd netcut-linux
+docker compose up -d
+```
+
+The dashboard is up at **http://127.0.0.1:8080**. The image is fully
+self-contained — Python, scapy, nftables and the OUI database are baked in,
+so no host filesystem mounts are needed.
+
+```bash
+docker compose logs -f   # follow the logs
+docker compose down      # stop it
+```
+
+Or without compose:
+
+```bash
+docker build -t netcut-linux .
+docker run --rm -d --name netcut \
+  --network=host \
+  --cap-add=NET_RAW --cap-add=NET_ADMIN \
+  netcut-linux
+```
+
+Two things are required:
+
+- **`--network=host`** — ARP spoofing and the relay have to work on the
+  host's real interfaces. Without it the container gets its own network
+  namespace and never sees the LAN at all.
+- **`--cap-add=NET_RAW --cap-add=NET_ADMIN`** — for packet capture and the
+  nftables rules.
+
+### Native (launcher)
+
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
 cd netcut-linux
@@ -322,6 +359,14 @@ synthetic demo data, so they contain no one's SSID or MAC addresses:
 
 ```bash
 python3 tools/make_screenshots.py   # requires firefox + Pillow
+```
+
+The OUI database (`assets/oui.txt`) is bundled so the Docker image builds
+without network access. To refresh it:
+
+```bash
+curl -sL https://standards-oui.ieee.org/oui/oui.csv -o /tmp/oui.csv
+python3 tools/oui_csv_to_hwdata.py /tmp/oui.csv assets/oui.txt
 ```
 
 The architecture diagram is not an image but **Mermaid** — GitHub renders it

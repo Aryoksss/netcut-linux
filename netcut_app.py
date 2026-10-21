@@ -30,6 +30,21 @@ PORT = int(os.environ.get("NETCUT_PORT", "8080"))
 BASE = f"http://127.0.0.1:{PORT}"
 
 
+def in_container() -> bool:
+    """True kalau proses ini sudah jalan di dalam container.
+
+    Di dalam container tidak ada docker daemon, jadi tidak ada gunanya
+    mencoba spawn container lagi - cukup jalan native di sini.
+    """
+    if os.path.exists("/.dockerenv"):
+        return True
+    try:
+        with open("/proc/1/cgroup") as fh:
+            return any(k in fh.read() for k in ("docker", "kubepods", "containerd"))
+    except OSError:
+        return False
+
+
 # ---------------------------------------------------------------- output
 class C:
     """Warna ANSI. Nonaktif kalau stdout bukan tty atau NO_COLOR diset."""
@@ -189,12 +204,24 @@ class Server:
     def start(self) -> bool:
         if self.is_running():
             return True
+        if self.port_responding():
+            # Server sudah ada (mis. dijalankan lewat docker compose atau
+            # manual). Cukup pakai, jangan bikin instance kedua yang
+            # bentrok porta.
+            log(f"server sudah jalan di {BASE} - tidak membuat yang baru")
+            self._save_state({"mode": "external"})
+            return True
         os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
 
         if self.has_capture_privs():
             ok = self._start_native()
             if ok:
                 return True
+        if in_container():
+            # sudah di dalam container: tidak ada docker daemon di sini,
+            # dan tidak perlu. Jalan native dengan kapabilitas yang ada.
+            log("sudah di dalam container - jalan native")
+            return self._start_native()
         if self.docker_usable():
             log("menjalankan via docker (privilege penuh, tanpa sudo)")
             if self._start_docker():
@@ -284,8 +311,26 @@ class Server:
         except ValueError:
             return {}
 
+    @staticmethod
+    def port_responding() -> bool:
+        """True kalau ada server netcut yang sudah melayani di port ini.
+
+        Dipakai supaya launcher tidak membuat container kedua saat server
+        sudah jalan (mis. dari `docker compose up`).
+        """
+        try:
+            with urllib.request.urlopen(f"{BASE}/api/hosts", timeout=2) as r:
+                if r.status != 200:
+                    return False
+                body = r.read()
+            return b'"hosts"' in body or b'"iface"' in body
+        except (urllib.error.URLError, OSError, ValueError):
+            return False
+
     def is_running(self) -> bool:
         state = self._load_state()
+        if state.get("mode") == "external":
+            return self.port_responding()
         if state.get("mode") == "docker":
             try:
                 p = subprocess.run(
@@ -501,6 +546,8 @@ def doctor() -> int:
         print(f"    forward     : {C.green('trafik forward diizinkan')}")
 
     print(f"\n  {C.bold('mode yang akan dipakai')}")
+    if in_container():
+        print(f"    {C.dim('berjalan di dalam container')}")
     if caps:
         print(f"    {C.green('capture')}"
               f" {C.dim('- blokir, limit, dan ARP spoof aktif')}")
@@ -516,6 +563,8 @@ def doctor() -> int:
     print(f"\n  {C.bold('server')}")
     srv = Server()
     running = srv.is_running()
+    if not running and srv.port_responding():
+        running = True
     print(f"    status       : {C.green('running') if running else C.dim('stopped')}")
     print(f"    dashboard    : {BASE}")
     if running:
@@ -568,6 +617,10 @@ def main() -> int:
         state = srv._load_state()
         running = srv.is_running()
         mode = state.get("mode", "?")
+        if not running and srv.port_responding():
+            # server dari luar (mis. docker compose) - bukan milik launcher
+            running = True
+            mode = "external"
         print(f"{C.bold('netcut-linux')}  {C.dim('status')}")
         print(f"  server     : {C.green('running') if running else C.red('stopped')}"
               f"  {C.dim('(' + mode + ')')}")

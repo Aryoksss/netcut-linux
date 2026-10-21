@@ -1,0 +1,30 @@
+# services:
+#   netcut:
+#     build: .
+#     image: netcut-linux
+#     container_name: netcut
+#     # network_mode host wajib: ARP spoofing & relay harus bekerja pada
+#     # interface host yang asli. Tanpa itu container ada di netns sendiri
+#     # dan tidak akan melihat LAN sama sekali.
+#     network_mode: host
+#     cap_add:
+#       - NET_RAW     # capture paket + ARP scan
+#       - NET_ADMIN   # aturan nftables
+#     restart: unless-stopped
+#
+#   docker compose up -d      -> dashboard di http://127.0.0.1:8080
+#   docker compose logs -f
+#   docker compose down
+
+services:
+  netcut:
+    build: .
+    image: netcut-linux
+    container_name: netcut
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    # port dashboard (pakai --network=host, jadi port-nya bukan publish)
+    command: ["--web", "--web-port", "8080"]
+    restart: unless-stopped
