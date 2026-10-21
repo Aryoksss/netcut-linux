@@ -35,8 +35,10 @@ import socket
 import struct
 import subprocess
 import sys
+import threading
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 try:
@@ -107,6 +109,8 @@ class Host:
     ip: str
     mac: str = ""
     vendor: str = ""
+    name: str = ""          # hostname hasil probe (mDNS/NetBIOS/PTR)
+    name_src: str = ""      # sumber nama: mdns | nbns | ptr
     rx: int = 0
     tx: int = 0
     rx_rate: float = 0.0
@@ -161,6 +165,296 @@ def parse_neigh(text: str) -> list[tuple[str, str]]:
     return found
 
 
+def clean_hostname(raw: str, ip: str = "") -> str:
+    """Rapikan hasil PTR jadi nama pendek yang layak ditampilkan.
+
+    ``hp-andi.lan.`` -> ``hp-andi``. Nama kosong, sama dengan IP, atau isinya
+    placeholder router dianggap tidak ada (string kosong).
+    """
+    if not raw:
+        return ""
+    full = raw.strip().rstrip(".")
+    if not full or full == ip:
+        return ""
+    name = full.split(".")[0].strip()
+    if not name or name == ip:
+        return ""
+    if name.lower() in {"localhost", "unknown", "none", "-"}:
+        return ""
+    if not all(ch.isprintable() for ch in name):
+        return ""
+    return name[:32]
+
+
+# --- protokol nama perangkat -------------------------------------------
+# Tiga sumber, dicoba berurutan. Semuanya UDP dengan timeout pendek dan
+# tanpa dependency baru: mDNS (HP/Apple/Android), NetBIOS (Windows), lalu
+# PTR lewat resolver sistem (nama dari DHCP router).
+
+MDNS_GROUP = ("224.0.0.251", 5353)
+NBNS_PORT = 137
+
+
+def _dns_encode_name(name: str) -> bytes:
+    """Encode nama DNS (label-length) tanpa kompresi."""
+    out = b""
+    for label in name.rstrip(".").split("."):
+        raw = label.encode("ascii", "ignore")[:63]
+        if not raw:
+            continue
+        out += bytes([len(raw)]) + raw
+    return out + b"\x00"
+
+
+def _dns_read_name(data: bytes, off: int, depth: int = 0) -> tuple[str, int]:
+    """Baca nama DNS, termasuk pointer kompresi 0xC0."""
+    labels: list[str] = []
+    while off < len(data) and depth < 8:
+        ln = data[off]
+        if ln == 0:
+            off += 1
+            break
+        if ln & 0xC0 == 0xC0:
+            if off + 1 >= len(data):
+                break
+            ptr = ((ln & 0x3F) << 8) | data[off + 1]
+            sub, _ = _dns_read_name(data, ptr, depth + 1)
+            if sub:
+                labels.append(sub)
+            off += 2
+            break
+        labels.append(data[off + 1:off + 1 + ln].decode("ascii", "replace"))
+        off += 1 + ln
+    return ".".join(labels), off
+
+
+def _dns_parse_ptr(data: bytes) -> str:
+    """Ambil record PTR pertama dari pesan DNS/mDNS."""
+    if len(data) < 12:
+        return ""
+    qd, an = struct.unpack("!HH", data[4:8])
+    off = 12
+    for _ in range(qd):
+        _, off = _dns_read_name(data, off)
+        off += 4
+    for _ in range(an):
+        _, off = _dns_read_name(data, off)
+        if off + 10 > len(data):
+            return ""
+        rtype, _rclass, _ttl, rdlen = struct.unpack("!HHIH", data[off:off + 10])
+        off += 10
+        if rtype == 12 and off + rdlen <= len(data):
+            name, _ = _dns_read_name(data, off)
+            return name
+        off += rdlen
+    return ""
+
+
+def mdns_lookup(ip: str, timeout: float = 1.2) -> str:
+    """Tanya mDNS: PTR untuk <ip>.in-addr.arpa.
+
+    Bit QU (qclass 0x8001) dipakai supaya jawabannya dikirim unicast ke socket
+    kita, bukan multicast ke 5353 — port itu biasanya sudah dipegang avahi.
+    """
+    rev = ".".join(reversed(ip.split("."))) + ".in-addr.arpa"
+    pkt = struct.pack("!HHHHHH", 0, 0, 1, 0, 0, 0)
+    pkt += _dns_encode_name(rev) + struct.pack("!HH", 12, 0x8001)
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(timeout)
+            s.sendto(pkt, MDNS_GROUP)
+            end = time.time() + timeout
+            while time.time() < end:
+                data, _ = s.recvfrom(4096)
+                name = clean_hostname(_dns_parse_ptr(data), ip)
+                if name:
+                    return name
+    except (OSError, struct.error):
+        return ""
+    return ""
+
+
+def _nbns_encode_name(name: str = "*") -> bytes:
+    """Encode nama NetBIOS (16 byte, half-ASCII) untuk query NBSTAT."""
+    raw = name.upper().ljust(16, " ").encode("ascii", "ignore")[:16]
+    out = bytearray([0x20])
+    for b in raw:
+        out.append(ord("A") + (b >> 4))
+        out.append(ord("A") + (b & 0x0F))
+    out.append(0)
+    return bytes(out)
+
+
+def _nbns_first_name(rdata: bytes) -> str:
+    """Ambil nama unik pertama dari record NBSTAT (nama + tipe 2 byte)."""
+    if len(rdata) < 1:
+        return ""
+    count = rdata[0]
+    for i in range(count):
+        base = 1 + i * 17          # tiap entri: 15 byte nama + 2 byte flags
+        if base + 17 > len(rdata):
+            break
+        raw = rdata[base:base + 15]
+        flags = struct.unpack("!H", rdata[base + 15:base + 17])[0]
+        if flags & 0x8000:            # group name, bukan nama perangkat
+            continue
+        if flags & 0x00FF not in (0x00, 0x20):   # workstation / server
+            continue
+        name = raw.decode("ascii", "replace").strip()
+        if name:
+            return name
+    return ""
+
+
+def _nbns_parse_name(data: bytes) -> str:
+    if len(data) < 12:
+        return ""
+    qd, an = struct.unpack("!HH", data[4:8])
+    off = 12
+    for _ in range(qd):
+        if off >= len(data):
+            return ""
+        off += 1 + data[off] + 1
+        off += 4
+    for _ in range(an):
+        if off >= len(data):
+            return ""
+        if data[off] & 0xC0 == 0xC0:
+            off += 2
+        else:
+            while off < len(data) and data[off]:
+                off += 1 + data[off]
+            off += 1
+        if off + 10 > len(data):
+            return ""
+        rtype, _rclass, _ttl, rdlen = struct.unpack("!HHIH", data[off:off + 10])
+        off += 10
+        if rtype == 0x0021 and off + rdlen <= len(data):
+            return _nbns_first_name(data[off:off + rdlen])
+        off += rdlen
+    return ""
+
+
+def nbns_lookup(ip: str, timeout: float = 1.0) -> str:
+    """Tanya NetBIOS node status (UDP 137) — nama perangkat Windows."""
+    q = struct.pack("!HHHHHH", 0x4E43, 0, 1, 0, 0, 0)
+    q += _nbns_encode_name("*") + struct.pack("!HH", 0x0021, 0x0001)
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(timeout)
+            s.sendto(q, (ip, NBNS_PORT))
+            data, _ = s.recvfrom(4096)
+    except (OSError, struct.error):
+        return ""
+    return clean_hostname(_nbns_parse_name(data), ip)
+
+
+def parse_dhcp(payload: bytes) -> tuple[str, str, str] | None:
+    """Ambil (mac, hostname, vendor_class) dari payload BOOTP/DHCP.
+
+    Banyak HP tidak menjawab mDNS/NetBIOS, tapi saat tersambung ke jaringan
+    mereka mengirim DHCP DISCOVER/REQUEST berisi opsi 12 (hostname) dan opsi 60
+    (vendor class, mis. "android-dhcp-14"). Paket itu broadcast, jadi ikut
+    tertangkap sniffer tanpa perlu izin tambahan.
+    """
+    if len(payload) < 240 or payload[236:240] != b"\x63\x82\x53\x63":
+        return None
+    mac = ":".join(f"{b:02x}" for b in payload[28:34])
+    hostname = ""
+    vendor = ""
+    i = 240
+    while i < len(payload):
+        code = payload[i]
+        if code == 0:                      # pad
+            i += 1
+            continue
+        if code == 255:                    # end
+            break
+        if i + 1 >= len(payload):
+            break
+        ln = payload[i + 1]
+        val = payload[i + 2:i + 2 + ln]
+        if code == 12:
+            hostname = val.decode("utf-8", "replace").strip()
+        elif code == 60:
+            vendor = val.decode("utf-8", "replace").strip()
+        i += 2 + ln
+    return mac, hostname, vendor
+
+
+def resolve_hostname(ip: str) -> tuple[str, str]:
+    """Cari nama perangkat dari beberapa sumber. Kembalikan (nama, sumber)."""
+    for probe, label in ((mdns_lookup, "mdns"), (nbns_lookup, "nbns")):
+        name = probe(ip)
+        if name:
+            return name, label
+    try:
+        host, _, _ = socket.gethostbyaddr(ip)
+    except (OSError, UnicodeError):
+        return "", ""
+    name = clean_hostname(host, ip)
+    return (name, "ptr") if name else ("", "")
+
+
+class HostnameResolver:
+    """Cari nama host di latar belakang, dengan cache dan tanpa memblokir.
+
+    Dashboard tidak boleh menunggu probe: satu lookup yang menggantung (device
+    mati, paket hilang) cukup untuk membekukan tabel. Karena itu ``lookup()``
+    selalu langsung kembali — nama yang belum ada dijadwalkan ke thread pool
+    dan muncul pada poll berikutnya.
+    """
+
+    OK_TTL = 3600.0     # nama ditemukan: tahan 1 jam
+    FAIL_TTL = 600.0    # gagal: coba lagi 10 menit kemudian
+    WORKERS = 4
+
+    def __init__(self) -> None:
+        self._cache: dict[str, tuple[str, str, float]] = {}   # ip -> (nama, sumber, exp)
+        self._pending: set[str] = set()
+        self._lock = threading.Lock()
+        self._pool = ThreadPoolExecutor(max_workers=self.WORKERS,
+                                        thread_name_prefix="names")
+
+    def lookup(self, ip: str) -> tuple[str, str]:
+        now = time.time()
+        with self._lock:
+            cached = self._cache.get(ip)
+            known = (cached[0], cached[1]) if cached else ("", "")
+            if cached and cached[2] > now:
+                return known
+            if ip in self._pending:
+                return known
+            self._pending.add(ip)
+        try:
+            self._pool.submit(self._resolve, ip)
+        except RuntimeError:            # pool sudah ditutup saat shutdown
+            with self._lock:
+                self._pending.discard(ip)
+        return known
+
+    def _resolve(self, ip: str) -> None:
+        try:
+            name, source = resolve_hostname(ip)
+        except Exception:               # probe jaringan tidak boleh mematikan worker
+            name, source = "", ""
+        ttl = self.OK_TTL if name else self.FAIL_TTL
+        with self._lock:
+            self._cache[ip] = (name, source, time.time() + ttl)
+            self._pending.discard(ip)
+
+    def forget(self, ip: str | None = None) -> None:
+        """Lupakan hasil cache — dipakai saat scan diminta ulang."""
+        with self._lock:
+            if ip is None:
+                self._cache.clear()
+            else:
+                self._cache.pop(ip, None)
+
+    def close(self) -> None:
+        self._pool.shutdown(wait=False)
+
+
 class Sniffer:
     """Raw AF_PACKET capture, mode promiscuous seperti pcap_open_live.
 
@@ -192,6 +486,28 @@ class Sniffer:
         self.local_net = _iface_network(iface)
         self.local_nets = [self.local_net] if self.local_net else []
         self.local_ip = _iface_addr(iface)
+        self.names = HostnameResolver()
+        self.dhcp_names: dict[str, tuple[str, str]] = {}   # mac -> (nama, vendor class)
+
+    def refresh_names(self) -> None:
+        """Isi ``Host.name`` dari PTR, tanpa memblokir poll.
+
+        Lookup dijadwalkan ke thread pool; hasilnya muncul pada poll
+        berikutnya. Host yang sudah punya nama tidak ditanya lagi.
+        """
+        for host in self.hosts.values():
+            if host.name:
+                continue
+            # nama dari DHCP lebih dulu: itu nama yang dipakai perangkat itu
+            # sendiri, dan satu-satunya sumber yang biasanya ada untuk HP
+            seen = self.dhcp_names.get(host.mac)
+            if seen and seen[0]:
+                host.name, host.name_src = seen[0], "dhcp"
+                continue
+            name, source = self.names.lookup(host.ip)
+            if name:
+                host.name = name
+                host.name_src = source
 
     def open(self) -> None:
         self.sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
@@ -221,6 +537,7 @@ class Sniffer:
         if self.sock:
             self.sock.close()
             self.sock = None
+        self.names.close()
 
     def _parse_eth(self, frame: bytes) -> tuple[int, bytes, bytes]:
         if len(frame) < 14:
@@ -285,6 +602,7 @@ class Sniffer:
     def _handle(self, frame: bytes) -> None:
         etype, dst, src = self._parse_eth(frame)
         if etype == ETH_P_IP:
+            self._maybe_dhcp(frame[14:])
             src_ip, dst_ip, length = self._parse_ipv4(frame[14:])
             src_local = self.is_local(src_ip)
             dst_local = self.is_local(dst_ip)
@@ -309,6 +627,24 @@ class Sniffer:
                 # hanya host di subnet aktif
                 if ip and (not self.local_nets or self.is_local(ip)):
                     self._touch(ip, mac)
+
+    def _maybe_dhcp(self, ip_pkt: bytes) -> None:
+        """Kalau ini paket DHCP, simpan nama perangkat dari opsi 12/60."""
+        if len(ip_pkt) < 28 or ip_pkt[9] != 17:          # proto UDP
+            return
+        ihl = (ip_pkt[0] & 0x0F) * 4
+        if ihl < 20 or len(ip_pkt) < ihl + 8:
+            return
+        sport, dport = struct.unpack("!HH", ip_pkt[ihl:ihl + 4])
+        if not ({sport, dport} & {67, 68}):
+            return
+        info = parse_dhcp(ip_pkt[ihl + 8:])
+        if not info:
+            return
+        mac, hostname, vendor = info
+        name = clean_hostname(hostname)
+        if name:
+            self.dhcp_names[mac] = (name, vendor)
 
     def is_local(self, ip: str) -> bool:
         """True jika IP berada di jaringan LAN lokal (bukan internet remote)."""
@@ -796,6 +1132,7 @@ def run_tui(sniffer: Sniffer, tc: TrafficControl, fallback=None, duration: int =
                 fallback.refresh()
             sniffer.merge_neighbors()
             sniffer.refresh_rates()
+            sniffer.refresh_names()
 
             rows = sorted(
                 sniffer.hosts.values(),
@@ -811,14 +1148,17 @@ def run_tui(sniffer: Sniffer, tc: TrafficControl, fallback=None, duration: int =
                 lines.append(f"  MODE FALLBACK (tanpa root) - interface total: "
                              f"RX {fmt_rate(fallback.rx_rate)}  TX {fmt_rate(fallback.tx_rate)}")
             lines += [
-                f"  {'IP':<16}{'MAC':<18}{'RX':>11}{'TX':>11}{'TOTAL':>11}  VENDOR",
+                f"  {'IP':<16}{'MAC':<18}{'RX':>11}{'TX':>11}{'TOTAL':>11}  PERANGKAT",
                 "  " + "-" * 96,
             ]
             for h in rows[:24]:
+                # nama host lebih berguna daripada vendor; vendor tetap
+                # ditampilkan di belakangnya kalau nama tersedia
+                label = f"{h.name} ({h.vendor[:22]})" if h.name else h.vendor
                 lines.append(
                     f"  {h.ip:<16}{h.mac:<18}"
                     f"{fmt_rate(h.rx_rate):>11}{fmt_rate(h.tx_rate):>11}"
-                    f"{fmt_bytes(h.rx + h.tx):>11}  {h.vendor[:34]}"
+                    f"{fmt_bytes(h.rx + h.tx):>11}  {label[:44]}"
                 )
             if not rows:
                 lines.append("  (menunggu trafik...)")
@@ -964,11 +1304,17 @@ def main() -> int:
             time.sleep(0.1)
         sniffer.merge_neighbors()
         sniffer.refresh_rates()
+        sniffer.refresh_names()
+        deadline = time.time() + 1.0     # beri kesempatan PTR yang masih jalan
+        while time.time() < deadline and any(not h.name for h in sniffer.hosts.values()):
+            time.sleep(0.05)
+            sniffer.refresh_names()
         rows = sorted(sniffer.hosts.values(), key=lambda h: h.rx + h.tx, reverse=True)
         if args.json:
             out = [
                 {
                     "ip": h.ip, "mac": h.mac, "vendor": h.vendor,
+                    "name": h.name,
                     "rx": h.rx, "tx": h.tx,
                     "rx_rate": round(h.rx_rate, 1), "tx_rate": round(h.tx_rate, 1),
                     "source": h.source,

@@ -26,6 +26,8 @@ but it is reimplemented with native Linux tooling.
 ## Features
 
 - **Real-time monitoring** per host: IP, MAC, vendor, download, upload, total
+- **Device names** — from DHCP, mDNS, NetBIOS, or reverse DNS; click a name
+  to give it your own label (saved locally)
 - **Block a device** — cut a device's internet access on the network
 - **Bandwidth limiting** per device (kbps)
 - **Bulk actions** — select many devices at once, then block, unblock or limit
@@ -54,6 +56,8 @@ docker pull ghcr.io/aryoksss/netcut-linux:latest
 docker run -d --name netcut \
   --network=host \
   --cap-add=NET_RAW --cap-add=NET_ADMIN \
+  -e NETCUT_STATE_DIR=/var/lib/netcut \
+  -v netcut-state:/var/lib/netcut \
   --restart unless-stopped \
   ghcr.io/aryoksss/netcut-linux:latest
 ```
@@ -252,6 +256,22 @@ Light theme (the sun button in the header):
 | `P` | Pause / resume polling |
 | `T` | Toggle theme |
 
+### Device names
+
+A host is labelled from the first source that answers, in this order:
+
+1. **DHCP** — hostname option (12) and vendor class (60) from the device's own
+   DHCP request. This is the usual source for phones, and it also catches the
+   device type (e.g. `android-dhcp-14`).
+2. **mDNS** — reverse PTR query, answered by Apple/Android/Linux devices.
+3. **NetBIOS** — node status query on UDP 137, answered by Windows machines.
+4. **Reverse DNS** — PTR through the system resolver, when your router
+   registers DHCP names.
+
+Devices that answer none of these (some phones keep quiet) still show IP, MAC
+and vendor. Click the device name in the dashboard to give it a label of your
+own — it is stored locally and survives restarts.
+
 ### REST API
 
 | Endpoint | Method | Body | Purpose |
@@ -265,6 +285,7 @@ Light theme (the sun button in the header):
 | `/api/bulk` | POST | `{"ips":[...],"action":"block\|unblock\|limit\|unlimit","kbps":512}` | bulk action (processed in parallel) |
 | `/api/scan` | POST | `{"net":"..."}` | ARP scan (background) |
 | `/api/iface` | POST | `{"iface":"..."}` | switch interface |
+| `/api/name` | POST | `{"ip":"...","name":"HP Andi"}` | set (or clear) a device label |
 
 ### System tray
 

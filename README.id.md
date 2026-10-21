@@ -26,6 +26,8 @@ namun diimplementasikan ulang dengan tool Linux native.
 ## Fitur
 
 - **Monitoring real-time** per host: IP, MAC, vendor, download, upload, total
+- **Nama perangkat** — dari DHCP, mDNS, NetBIOS, atau reverse DNS; klik namanya
+  untuk memberi label sendiri (disimpan lokal)
 - **Blokir device** — memutus akses internet sebuah perangkat di jaringan
 - **Batasi bandwidth** per device (kbps)
 - **Aksi massal** — pilih banyak perangkat sekaligus, lalu blokir/buka/limit
@@ -54,6 +56,8 @@ docker pull ghcr.io/aryoksss/netcut-linux:latest
 docker run -d --name netcut \
   --network=host \
   --cap-add=NET_RAW --cap-add=NET_ADMIN \
+  -e NETCUT_STATE_DIR=/var/lib/netcut \
+  -v netcut-state:/var/lib/netcut \
   --restart unless-stopped \
   ghcr.io/aryoksss/netcut-linux:latest
 ```
@@ -253,6 +257,22 @@ Tema terang (tombol sun di header):
 | `P` | Jeda / lanjut polling |
 | `T` | Ganti tema |
 
+### Nama perangkat
+
+Nama diambil dari sumber pertama yang menjawab, berurutan:
+
+1. **DHCP** — opsi hostname (12) dan vendor class (60) dari permintaan DHCP
+   perangkat itu sendiri. Ini sumber utama untuk HP, sekaligus memberi tahu
+   jenis perangkatnya (mis. `android-dhcp-14`).
+2. **mDNS** — query PTR balik, dijawab perangkat Apple/Android/Linux.
+3. **NetBIOS** — node status query di UDP 137, dijawab mesin Windows.
+4. **Reverse DNS** — PTR lewat resolver sistem, kalau router mendaftarkan nama
+   DHCP.
+
+Perangkat yang tidak menjawab satu pun (sebagian HP memang diam) tetap tampil
+dengan IP, MAC, dan vendor. Klik nama perangkat di dashboard untuk memberi
+label sendiri — disimpan lokal dan tetap ada setelah restart.
+
 ### REST API
 
 | Endpoint | Method | Body | Fungsi |
@@ -266,6 +286,7 @@ Tema terang (tombol sun di header):
 | `/api/bulk` | POST | `{"ips":[...],"action":"block\|unblock\|limit\|unlimit","kbps":512}` | aksi massal (diproses paralel) |
 | `/api/scan` | POST | `{"net":"..."}` | ARP scan (background) |
 | `/api/iface` | POST | `{"iface":"..."}` | ganti interface |
+| `/api/name` | POST | `{"ip":"...","name":"HP Andi"}` | set (atau hapus) label perangkat |
 
 ### System tray
 

@@ -20,6 +20,15 @@ services:
     cap_add:
       - NET_RAW     # capture paket + ARP scan
       - NET_ADMIN   # aturan nftables
+    # label perangkat yang kamu beri nama sendiri disimpan di sini, supaya
+    # tidak hilang saat container dibuat ulang
+    environment:
+      - NETCUT_STATE_DIR=/var/lib/netcut
+    volumes:
+      - netcut-state:/var/lib/netcut
     # port dashboard (pakai --network=host, jadi port-nya bukan publish)
     command: ["--web", "--web-port", "8080"]
     restart: unless-stopped
+
+volumes:
+  netcut-state:

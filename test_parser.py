@@ -186,6 +186,74 @@ def test_neigh_parser() -> None:
     print("  ok  parser ip neigh (dengan & tanpa filter dev)")
 
 
+def test_hostname_cleanup() -> None:
+    """clean_hostname: buang domain, tolak placeholder, batasi panjang."""
+    assert nc.clean_hostname("hp-andi.lan.", "192.168.0.7") == "hp-andi"
+    assert nc.clean_hostname("Galaxy-A54.local") == "Galaxy-A54"
+    assert nc.clean_hostname("router") == "router"
+    # placeholder / tidak berguna
+    assert nc.clean_hostname("") == ""
+    assert nc.clean_hostname("   ") == ""
+    assert nc.clean_hostname("localhost") == ""
+    assert nc.clean_hostname("unknown.") == ""
+    assert nc.clean_hostname("192.168.0.7", "192.168.0.7") == ""
+    assert nc.clean_hostname("bad\x00name") == ""
+    # dipotong, bukan dibuang
+    assert len(nc.clean_hostname("x" * 80)) == 32
+    print("  ok  pembersih nama host (PTR)")
+
+
+def test_name_protocols() -> None:
+    """Parser mDNS (PTR) dan NetBIOS (NBSTAT) membaca nama dari paket jawaban."""
+    # mDNS: satu record PTR
+    ans = nc._dns_encode_name("hp-andi.lan")
+    pkt = struct.pack("!HHHHHH", 0, 0x8400, 0, 1, 0, 0)
+    pkt += ans + struct.pack("!HHIH", 12, 1, 120, len(ans)) + ans
+    assert nc._dns_parse_ptr(pkt) == "hp-andi.lan"
+
+    # nama panjang: encoding label-length harus benar
+    assert nc._dns_encode_name("a.bc") == b"\x01a\x02bc\x00"
+
+    # NetBIOS: dua entri, yang pertama group name (harus dilewati)
+    group = b"WORKGROUP".ljust(15) + struct.pack("!H", 0x8400)
+    unik = b"HP-ANDI".ljust(15) + struct.pack("!H", 0x0400)
+    rdata = bytes([2]) + group + unik
+    question = nc._nbns_encode_name("*") + struct.pack("!HH", 0x21, 1)
+    pkt2 = struct.pack("!HHHHHH", 0x4E43, 0x8400, 1, 1, 0, 0)
+    pkt2 += question + b"\xc0\x0c"
+    pkt2 += struct.pack("!HHIH", 0x21, 1, 0, len(rdata)) + rdata
+    assert nc._nbns_parse_name(pkt2) == "HP-ANDI"
+
+    # paket rusak tidak boleh melempar exception
+    assert nc._dns_parse_ptr(b"") == ""
+    assert nc._nbns_parse_name(b"\x00") == ""
+    assert nc._nbns_parse_name(pkt2[:20]) == ""
+    print("  ok  parser nama mDNS + NetBIOS")
+
+
+def test_dhcp_name() -> None:
+    """parse_dhcp membaca hostname (opsi 12) dan vendor class (opsi 60)."""
+    def opt(code: int, val: bytes) -> bytes:
+        return bytes([code, len(val)]) + val
+
+    bootp = bytearray(236)
+    bootp[0] = 1                                    # BOOTREQUEST
+    bootp[28:34] = bytes.fromhex("aabbcc001122")    # chaddr
+    pkt = bytes(bootp) + b"\x63\x82\x53\x63"
+    pkt += opt(53, b"\x01") + opt(12, b"Galaxy-A54")
+    pkt += opt(60, b"android-dhcp-14") + b"\xff"
+
+    mac, host, vendor = nc.parse_dhcp(pkt)
+    assert mac == "aa:bb:cc:00:11:22"
+    assert host == "Galaxy-A54"
+    assert vendor == "android-dhcp-14"
+
+    # paket tanpa magic cookie / terlalu pendek harus ditolak, bukan crash
+    assert nc.parse_dhcp(b"") is None
+    assert nc.parse_dhcp(b"\x00" * 300) is None
+    print("  ok  parser DHCP (nama perangkat dari opsi 12/60)")
+
+
 if __name__ == "__main__":
     print("netcut parser unit tests:")
     for fn in (
@@ -199,6 +267,9 @@ if __name__ == "__main__":
         test_no_double_count,
         test_fmt_helpers,
         test_neigh_parser,
+        test_hostname_cleanup,
+        test_name_protocols,
+        test_dhcp_name,
     ):
         fn()
     print("semua test lulus")

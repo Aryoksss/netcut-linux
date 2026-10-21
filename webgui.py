@@ -8,6 +8,7 @@ Dipakai lewat:  netcut.py --web [--web-port 8080]
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import threading
 import time
@@ -238,8 +239,15 @@ td.c-num{width:112px}
 td.c-tot{width:92px;color:var(--fg2)}
 td.c-st{min-width:110px}
 td.c-act{width:158px}
+td.c-dev{cursor:pointer}
+td.c-dev:hover .hostname{color:var(--accent);text-decoration:underline dotted}
+.devbox{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.hostname{font-family:var(--sans);font-size:12.5px;font-weight:650;color:var(--fg);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hostname:empty{display:none}
 .vendor{font-family:var(--sans);font-size:12.5px;color:var(--fg2);
   overflow:hidden;text-overflow:ellipsis}
+.vendor.sub{font-size:11px;color:var(--dim)}
 .iptext{font-family:var(--mono);font-size:12.5px}
 .copybtn{font:inherit;background:none;border:0;color:var(--dim);cursor:pointer;
   padding:1px 2px;border-radius:4px;display:inline-flex;vertical-align:middle;
@@ -776,7 +784,9 @@ function visibleHosts() {
   }
   const k = S.sortKey, dir = S.sortDir;
   out.sort((a, b) => {
-    const x = a[k], y = b[k];
+    // kolom Perangkat: urutkan menurut nama host, fallback ke vendor
+    const x = k === "vendor" ? (a.name || a.vendor) : a[k];
+    const y = k === "vendor" ? (b.name || b.vendor) : b[k];
     if (typeof x === "string" || typeof y === "string") {
       return dir * String(x || "").localeCompare(String(y || ""), "id");
     }
@@ -796,7 +806,9 @@ function makeRow(h) {
        <button class="copybtn" title="Salin IP" aria-label="Salin IP">
          <svg class="ic sm"><use href="#i-copy"/></svg></button></td>` +
     `<td class="c-mac" data-label="MAC"></td>` +
-    `<td class="c-dev" data-label="Perangkat"><span class="vendor"></span></td>` +
+    `<td class="c-dev" data-label="Perangkat">` +
+      `<div class="devbox"><span class="hostname"></span>` +
+      `<span class="vendor"></span></div></td>` +
     `<td class="num c-num c-rx" data-label="Download"></td>` +
     `<td class="num c-num c-tx" data-label="Upload"></td>` +
     `<td class="num c-tot" data-label="Total"></td>` +
@@ -807,6 +819,7 @@ function makeRow(h) {
     ip: tr.querySelector(".iptext"),
     mac: tr.querySelector(".c-mac"),
     dev: tr.querySelector(".vendor"),
+    host: tr.querySelector(".hostname"),
     rx: tr.querySelector(".c-rx"),
     tx: tr.querySelector(".c-tx"),
     tot: tr.querySelector(".c-tot"),
@@ -820,6 +833,10 @@ function makeRow(h) {
   tr.querySelector(".copybtn").addEventListener("click", ev => {
     ev.stopPropagation();
     copyText(h.ip);
+  });
+  tr.querySelector(".c-dev").addEventListener("click", ev => {
+    ev.stopPropagation();
+    renameModal(tr.dataset.ip, (tr._c.host.textContent || "").trim());
   });
   tr.addEventListener("click", ev => {
     if (ev.target.closest("button,input,a")) return;
@@ -864,8 +881,16 @@ function updateRow(tr, h, top) {
 
   setText(c.ip, h.ip);
   setText(c.mac, h.mac || "—");
-  setText(c.dev, h.vendor || "unknown");
-  c.dev.title = h.vendor || "";
+  const label = h.label || h.name || "";
+  setText(c.host, label);
+  c.host.title = label ? "Klik untuk mengganti nama" : "Klik untuk memberi nama";
+  setText(c.dev, h.vendor || (label ? "" : "unknown"));
+  c.dev.classList.toggle("sub", !!label);
+  c.dev.title = [
+    h.label ? "nama: " + h.label : "",
+    h.name ? "terdeteksi: " + h.name + " (" + (h.name_src || "?") + ")" : "",
+    h.vendor ? "vendor: " + h.vendor : "",
+  ].filter(Boolean).join(" · ");
   setHTML(c.rx, fmtRate(h.rx_rate) +
     (h.rx_rate ? `<span class="bar" style="width:${wRx.toFixed(1)}px"></span>` : ""));
   setHTML(c.tx, fmtRate(h.tx_rate) +
@@ -1102,6 +1127,37 @@ function confirmModal(title, message, confirmLabel, onConfirm) {
      <button class="btn pri" data-ok>${esc(confirmLabel)}</button>`);
   $('[data-x]').onclick = closeModal;
   $('[data-ok]').onclick = () => { closeModal(); onConfirm(); };
+}
+
+function renameModal(ip, current) {
+  openModal("Nama perangkat",
+    `<p style="margin:0 0 12px;color:var(--fg2);font-size:12.5px;line-height:1.5">
+       Nama ini dipakai dashboard untuk <b>${esc(ip)}</b> dan disimpan lokal.
+       Kosongkan untuk menghapus.</p>
+     <input type="text" id="nameInput" maxlength="32" placeholder="mis. HP Andi"
+       value="${esc(current)}" style="width:100%">`,
+    `<button class="btn" data-x>Batal</button>
+     <button class="btn pri" data-ok>Simpan</button>`,
+    () => {
+      const el = $("#nameInput");
+      el.focus(); el.select();
+      el.addEventListener("keydown", e => {
+        if (e.key === "Enter") $("[data-ok]").click();
+      });
+    });
+  $("[data-x]").onclick = closeModal;
+  $("[data-ok]").onclick = async () => {
+    const val = $("#nameInput").value.trim();
+    closeModal();
+    try {
+      const r = await api("/api/name", { ip, name: val });
+      if (!r.ok) throw new Error(r.error || "gagal");
+      toast(val ? "Nama disimpan" : "Nama dihapus", "ok");
+      poll();
+    } catch (err) {
+      toast("Gagal menyimpan nama: " + err.message, "err");
+    }
+  };
 }
 
 /* ---------------------------------------------------------- limit modal */
@@ -1472,6 +1528,32 @@ setPolling(true);
 """
 
 
+LABELS_FILE = os.path.join(
+    os.environ.get("NETCUT_STATE_DIR", os.path.expanduser("~/.cache/netcut")),
+    "labels.json")
+
+
+def load_labels() -> dict[str, str]:
+    """Nama perangkat yang diberikan pengguna (ip -> nama), dari disk."""
+    try:
+        with open(LABELS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return {str(k): str(v) for k, v in data.items() if isinstance(v, str) and v}
+
+
+def save_labels(labels: dict[str, str]) -> None:
+    try:
+        os.makedirs(os.path.dirname(LABELS_FILE), exist_ok=True)
+        tmp = LABELS_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(labels, f, ensure_ascii=False, indent=1, sort_keys=True)
+        os.replace(tmp, LABELS_FILE)
+    except OSError as exc:
+        print(f"[web] gagal menyimpan nama perangkat: {exc}", flush=True)
+
+
 class WebState:
     """State bersama antara thread capture dan thread HTTP."""
 
@@ -1495,6 +1577,7 @@ class WebState:
         self.blocked_hosts: set[str] = set()
         self.limited_hosts: dict[str, int] = {}
         self.notes: dict[str, str] = {}
+        self.labels: dict[str, str] = load_labels()
         self._net_sig: tuple = ()
         self._pending_sig: tuple | None = None
         self._pending_count = 0
@@ -1524,6 +1607,7 @@ class WebState:
             self.sniffer.poll()
             self.sniffer.merge_neighbors()
             self.sniffer.refresh_rates()
+            self.sniffer.refresh_names()
             # buang host yang sudah lama tidak terlihat (mis. sisa dari
             # subnet sebelumnya)
             now = time.monotonic()
@@ -1616,15 +1700,18 @@ class WebState:
         # 5. scan subnet baru secara otomatis
         self.start_scan()
 
-    def start_scan(self) -> None:
-        """Jalankan ARP scan di background (tidak memblokir UI)."""
+    def start_scan(self, net: str | None = None) -> bool:
+        """Jalankan ARP scan di background (tidak memblokir UI).
+
+        Mengembalikan False kalau scan sebelumnya belum selesai.
+        """
         if self.scanning:
-            return
+            return False
         self.scanning = True
         self.scan_result = None
         # subnet dibaca langsung dari interface saat ini, bukan dari
         # net_info yang bisa masih berisi data subnet lama
-        net = _guess_net(self.iface)
+        net = net or _guess_net(self.iface)
 
         def _run() -> None:
             try:
@@ -1637,6 +1724,9 @@ class WebState:
                     else:
                         host = self.sniffer._touch(ip, mac)
                         host.vendor = self.sniffer.vendor.lookup(mac)
+                # probe nama diulang untuk semua host: perangkat yang tadi
+                # mati bisa sudah hidup lagi sejak scan terakhir
+                self.sniffer.names.forget()
                 self.scan_result = {"found": len(found), "net": net}
             except Exception as exc:
                 self.scan_result = {"found": 0, "net": net, "error": str(exc)}
@@ -1644,6 +1734,7 @@ class WebState:
                 self.scanning = False
 
         threading.Thread(target=_run, daemon=True).start()
+        return True
 
     def swap_iface(self, iface: str) -> tuple[bool, str]:
         with self.lock:
@@ -1880,6 +1971,9 @@ class WebState:
                 "ip": h.ip,
                 "mac": h.mac,
                 "vendor": h.vendor,
+                "name": h.name,
+                "name_src": h.name_src,
+                "label": self.labels.get(h.ip, ""),
                 "rx": h.rx,
                 "tx": h.tx,
                 "total": h.rx + h.tx,
@@ -2014,33 +2108,24 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 results = self.state.bulk([str(i) for i in ips], action, kbps)
                 self._json({"ok": True, "action": action, "results": results})
+            elif path == "/api/name":
+                ip = str(data.get("ip", "")).strip()
+                if not ip:
+                    self._json({"ok": False, "error": "ip wajib diisi"}, 400)
+                    return
+                name = str(data.get("name", "")).strip()[:32]
+                if name:
+                    self.state.labels[ip] = name
+                else:
+                    self.state.labels.pop(ip, None)
+                save_labels(self.state.labels)
+                self._json({"ok": True, "ip": ip, "name": name})
             elif path == "/api/scan":
                 net = data.get("net") or _guess_net(self.state.iface)
-                # scan bisa memakan waktu lama, jadi jalankan di background
-                # supaya UI tidak blocking.
-                if self.state.scanning:
+                # scan memakan waktu (254 probe), jadi dijalankan di background
+                if not self.state.start_scan(net):
                     self._json({"ok": False, "error": "scan sedang berjalan"}, 409)
                     return
-                self.state.scanning = True
-
-                def _run() -> None:
-                    try:
-                        found = arp_scan(net)
-                        for ip, mac in found:
-                            host = self.state.sniffer.hosts.get(ip)
-                            if host:
-                                host.mac = mac
-                                host.vendor = self.state.sniffer.vendor.lookup(mac)
-                            else:
-                                host = self.state.sniffer._touch(ip, mac)
-                                host.vendor = self.state.sniffer.vendor.lookup(mac)
-                        self.state.scan_result = {"found": len(found), "net": net}
-                    except Exception as exc:
-                        self.state.scan_result = {"found": 0, "net": net, "error": str(exc)}
-                    finally:
-                        self.state.scanning = False
-
-                threading.Thread(target=_run, daemon=True).start()
                 self._json({"ok": True, "started": True, "net": net})
             elif path == "/api/iface":
                 iface = data.get("iface", "")
