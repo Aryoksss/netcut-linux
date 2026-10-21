@@ -99,7 +99,7 @@ body{
 }
 .brand{display:flex;align-items:center;gap:7px;font-weight:600;
   letter-spacing:-.15px;font-size:14px;white-space:nowrap}
-.brand .logo{width:20px;height:20px;color:var(--accent)}
+.brand .logo{width:21px;height:21px;color:var(--accent);stroke-width:2}
 .brand b{color:var(--fg2);font-weight:500}
 .brand .ver{color:var(--dim);font-weight:400;font-size:12px}
 
@@ -183,10 +183,11 @@ main{padding:14px 16px;max-width:1240px;margin:0 auto;padding-bottom:96px}
   border:1px solid var(--line);border-radius:var(--r)}
 .stat{display:flex;flex-direction:column;gap:1px;min-width:0}
 .stat .k{color:var(--dim);font-size:11px;font-weight:500}
-.stat .v{font-size:15px;font-weight:600;line-height:1.2;
-  font-variant-numeric:tabular-nums}
+.stat .v{font-family:var(--mono);font-size:14.5px;font-weight:600;
+  line-height:1.25;font-variant-numeric:tabular-nums}
 .stat .v small{font-size:11px;color:var(--dim);font-weight:500;margin-left:2px}
-.stat .s{color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums}
+.stat .s{color:var(--dim);font-size:11px;font-family:var(--mono);
+  font-variant-numeric:tabular-nums}
 .stat .s:empty{display:none}
 .stat.hot .v{color:var(--bad)}
 
@@ -236,6 +237,8 @@ thead th.num,td.num{text-align:right}
 tbody td{padding:0 10px;height:30px;border-bottom:1px solid var(--line);
   font-size:12.5px;vertical-align:middle;white-space:nowrap;
   font-variant-numeric:tabular-nums}
+/* mono untuk apa pun yang diukur: angka satu kolom harus rata digit */
+td.c-num,td.c-tot,tfoot td{font-family:var(--mono);font-size:12px}
 tbody tr:last-child td{border-bottom:0}
 tbody tr:hover{background:var(--hover)}
 tbody tr.sel{background:var(--sel)}
@@ -454,7 +457,7 @@ kbd{font-family:var(--mono);font-size:10.5px;background:var(--panel2);
 <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v14"/><path d="m6 13 6 6 6-6"/></symbol>
 <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 20V6"/><path d="m6 11 6-6 6 6"/></symbol>
 <symbol id="i-host" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.6 20a6.4 6.4 0 0 1 12.8 0"/><path d="M16.5 5.3a3.2 3.2 0 0 1 0 5.6"/><path d="M17.5 14.2A6.4 6.4 0 0 1 21.4 20"/></symbol>
-<symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></symbol>
+<symbol id="i-ban" viewBox="0 0 24 24"><path d="M2.5 12h6.1"/><path d="M15.4 12h6.1"/><path d="m9.7 8.1 4.6 7.8"/></symbol>
 <symbol id="i-pkg" viewBox="0 0 24 24"><path d="M21 8v8a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4A2 2 0 0 1 21 8z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></symbol>
 <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M3.5 18a9 9 0 1 1 17 0"/><path d="m12 14 4-4"/><path d="M12 18h.01"/></symbol>
 <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20.5 20.5-4.2-4.2"/></symbol>
@@ -470,7 +473,7 @@ kbd{font-family:var(--mono);font-size:10.5px;background:var(--panel2);
 <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 9v4.5M12 17h.01"/><path d="M10.3 4 1.9 18.2A2 2 0 0 0 3.6 21h16.8a2 2 0 0 0 1.7-2.8L13.7 4a2 2 0 0 0-3.4 0z"/></symbol>
 <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
 <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
-<symbol id="i-netcut" viewBox="0 0 24 24"><path d="M12 2 4 6.5v6c0 5 3.4 8.9 8 9.9 4.6-1 8-4.9 8-9.9v-6z"/><path d="M9 12h6"/><path d="m11.5 9-2.5 3 2.5 3M12.5 9l2.5 3-2.5 3"/></symbol>
+<symbol id="i-netcut" viewBox="0 0 24 24"><path d="M5.5 12h3.7"/><path d="M14.8 12h3.7"/><circle cx="3.4" cy="12" r="2.1" fill="currentColor" stroke="none"/><circle cx="20.6" cy="12" r="2.1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="2.8" fill="currentColor" stroke="none"/></symbol>
 </defs></svg>
 
 <header class="topbar">

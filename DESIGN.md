@@ -66,13 +66,16 @@ are the only saturated things on screen, so a red row genuinely means something.
 
 ## Typography
 
-- **UI text**: the system sans stack. Body 13px, labels 11px, headings 15px, no display
-  face. A tool borrowed from the desktop should look like it belongs there.
-- **Identifiers**: monospace for IP and MAC only. They are compared character by
-  character, so fixed width is a reading aid, not a costume.
-- **Quantities**: body sans with `font-variant-numeric: tabular-nums`, right-aligned. A
-  rate column must align down the digits, and mono for numbers makes a table look like a
-  terminal cosplay.
+Two voices, and the split is the rule: **sans speaks, mono measures.**
+
+- **Language** (labels, headings, device names, buttons, prose) uses the system sans
+  stack. Body 13px, labels 11px, headings 15px. A tool borrowed from the desktop should
+  look like it belongs there.
+- **Anything measured** (IP, MAC, rates, byte totals, packet counts, kbps) uses
+  monospace. Every one of those values is compared down a column, character by
+  character, so fixed width is a reading aid and not a costume. The distinction the
+  first version got wrong: mono is wrong for *headings* and wrong for *prose*, right for
+  *data*. A rate column in mono aligns to the digit without a single extra rule.
 - **Table headers**: 11px, sentence case, medium weight, `--dim`. Uppercase with wide
   tracking was removed: it is the generic "technical" costume and it hurts scanning.
 
@@ -100,14 +103,20 @@ starts, because it changes what the screen can do.
 
 ## Identity motif
 
-Three things repeat and make the screen belong to this tool:
+Four things repeat and make the screen belong to this tool:
 
 1. **The answer line**: a single sentence above the table that states the situation in
    words, in the same position on every load.
 2. **The status rail**: a 2px left edge on a row that is blocked (red) or limited (amber).
    It carries state, not decoration, and it is the only place colour touches a row.
-3. **Tabular right-aligned quantities**: every number on the screen aligns with every
-   other number in its column.
+3. **Tabular right-aligned quantities**: every measured value aligns with every other
+   value in its column, because it is set in mono.
+4. **The mark and the block glyph**: the wordmark is three nodes with the middle one
+   filled, this machine sitting on the path between the devices and the gateway. The
+   block action is a severed cable, two segments with a diagonal cut, not the generic
+   circle-with-a-slash that every interface uses for "no". Both are drawn for this
+   product; the rest of the icon set stays as it is, because the remaining glyphs
+   (wifi, host, list, alert) describe objects, not this tool's job.
 
 ## What was removed, and why
 
