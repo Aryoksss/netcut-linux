@@ -29,7 +29,17 @@ namun diimplementasikan ulang dengan tool Linux native.
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
 cd netcut-linux
-./install.sh
+./install.sh          # cek dependency + pasang launcher
+netcut --doctor       # pastikan environment sudah siap
+netcut                # buka dashboard + system tray
+```
+
+`install.sh` mengecek dependency dulu dan menawarkan menambahkannya ke
+`~/.bashrc` supaya `netcut` bisa dipanggil dari mana saja. Kalau mau
+dependency ikut dipasang:
+
+```bash
+sudo ./install.sh --with-deps
 ```
 
 Launcher terpasang di `~/.local/bin/netcut` dan aplikasi muncul di app menu.
@@ -48,6 +58,9 @@ Alternatif tanpa instalasi:
 | nftables | `nftables` | `nftables` |
 | OUI database | `hwdata` | `hwdata` |
 
+`netcut --doctor` cek semua ini sekaligus beserta hak akses dan mode yang
+akan dipakai.
+
 ### Privilege
 
 Blokir & limit device lain butuh `CAP_NET_RAW` (capture) dan `CAP_NET_ADMIN`
@@ -59,7 +72,10 @@ Blokir & limit device lain butuh `CAP_NET_RAW` (capture) dan `CAP_NET_ADMIN`
 3. **Else** → mode fallback: monitoring total interface saja, tanpa kontrol
 
 Mode yang aktif terlihat di header dashboard: `capture` (penuh) atau
-`fallback-no-root` (terbatas).
+`fallback-no-root` (terbatas). Di mode fallback, dashboard menampilkan
+banner kuning dan tombol Blokir/Limit dimatikan dari awal, jadi tidak ada
+klik yang gagal tanpa penjelasan. `netcut --doctor` menyebutkan cara
+mengaktifkan mode penuh.
 
 ## Pemakaian
 
@@ -68,6 +84,7 @@ Mode yang aktif terlihat di header dashboard: `capture` (penuh) atau
 ```bash
 netcut                          # buka web GUI + system tray
 netcut --tray                   # hanya system tray
+netcut --doctor                 # cek dependency, hak akses, mode, status server
 netcut --status                 # cek status server (URL, mode, jumlah host)
 netcut --stop                   # hentikan server
 netcut --port 8090              # pakai porta lain

@@ -460,6 +460,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
   </span>
 
   <span class="badge" id="modeBadge">—</span>
+  <span class="badge" id="scanBadge" hidden></span>
   <span class="badge" id="pauseBadge" hidden>Jeda</span>
 
   <span class="grow"></span>
@@ -534,6 +535,16 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
     <span class="badge" id="uptimeBadge" title="Waktu aktif">0s</span>
   </div>
 
+  <div id="fallback" class="fallback" hidden>
+    <svg class="ic"><use href="#i-alert"/></svg>
+    <div>
+      <b>Mode fallback — hanya monitoring, tanpa kontrol.</b>
+      Server tidak punya <code>CAP_NET_RAW</code>/<code>CAP_NET_ADMIN</code>,
+      jadi blokir &amp; limit dinonaktifkan. Jalankan <code>netcut --doctor</code>
+      untuk cek, atau jalankan lewat docker / <code>sudo</code> agar semua fitur aktif.
+    </div>
+  </div>
+
   <div class="tablewrap">
     <table>
       <thead><tr>
@@ -561,16 +572,6 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
         <td class="num c-act"></td>
       </tr></tfoot>
     </table>
-  </div>
-
-  <div id="fallback" class="fallback" hidden>
-    <svg class="ic"><use href="#i-alert"/></svg>
-    <div>
-      <b>Mode fallback — hanya monitoring, tanpa kontrol.</b>
-      Server tidak punya <code>CAP_NET_RAW</code>/<code>CAP_NET_ADMIN</code>,
-      jadi blokir &amp; limit dinonaktifkan. Jalankan <code>netcut --doctor</code>
-      untuk cek, atau jalankan lewat docker / <code>sudo</code> agar semua fitur aktif.
-    </div>
   </div>
 
   <div id="notes"></div>
@@ -884,6 +885,29 @@ function render() {
     ? "Capture penuh: blokir, limit, dan ARP spoof aktif"
     : "Mode fallback: hanya total interface, tanpa kontrol blokir/limit";
   $("#pauseBadge").hidden = !S.paused;
+
+  // status scan: sedang jalan, hasil, atau error (mis. kurang hak akses)
+  const scanBadge = $("#scanBadge");
+  if (S.scanning) {
+    scanBadge.hidden = false;
+    scanBadge.className = "badge acc";
+    setText(scanBadge, "scanning…");
+    scanBadge.title = "ARP scan sedang berjalan";
+  } else if (S.scanResult) {
+    scanBadge.hidden = false;
+    if (S.scanResult.error) {
+      scanBadge.className = "badge bad";
+      setText(scanBadge, "scan gagal");
+      scanBadge.title = String(S.scanResult.error);
+    } else {
+      scanBadge.className = "badge";
+      setText(scanBadge, "scan: " + (S.scanResult.found || 0) + " host");
+      scanBadge.title = "Hasil ARP scan terakhir";
+    }
+  } else {
+    scanBadge.hidden = true;
+  }
+
   const fallback = S.mode !== "capture";
   $("#fallback").hidden = !fallback;
   // tanpa hak nftables/ARP spoof tombol kontrol dimatikan, bukan gagal saat diklik

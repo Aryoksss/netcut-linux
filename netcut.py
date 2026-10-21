@@ -423,7 +423,12 @@ class InterfaceCounters:
 # --------------------------------------------------------------------------
 
 def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
-    """Scan ARP pada subnet, return list (ip, mac)."""
+    """Scan ARP pada subnet, return list (ip, mac).
+
+    Kalau raw socket tidak boleh dibuka (butuh CAP_NET_RAW), error-nya
+    dilempar, bukan ditelan. Diam-diam mengembalikan [] membuat "tidak ada
+    device" terlihat sama dengan "tidak punya hak akses".
+    """
     try:
         ipnet = __import__("ipaddress").ip_network(net, strict=False)
     except ValueError:
@@ -431,9 +436,11 @@ def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
     targets = [str(h) for h in ipnet.hosts()]
     if len(targets) > 512:
         targets = targets[:512]
+    if not targets:
+        return []
 
     answered: list[tuple[str, str]] = []
-    packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=targets[0] if targets else "")
+    errors: list[Exception] = []
 
     def probe(ip: str) -> tuple[str, str] | None:
         try:
@@ -442,7 +449,8 @@ def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
                 timeout=timeout,
                 verbose=0,
             )
-        except Exception:
+        except Exception as exc:
+            errors.append(exc)
             return None
         for _, r in ans:
             if r[ARP].psrc == ip:
@@ -455,6 +463,16 @@ def arp_scan(net: str, timeout: float = 1.5) -> list[tuple[str, str]]:
         for result in pool.map(probe, targets):
             if result:
                 answered.append(result)
+
+    # semua probe gagal tanpa satu pun balasan: kemungkinan besar bukan
+    # "tidak ada device", tapi tidak boleh pakai raw socket
+    if not answered and errors:
+        first = errors[0]
+        if isinstance(first, PermissionError) or "Operation not permitted" in str(first):
+            raise PermissionError(
+                "ARP scan butuh CAP_NET_RAW. Jalankan netcut lewat docker, "
+                "atau dengan sudo, atau setcap cap_net_raw+ep") from first
+        raise first
     return answered
 
 

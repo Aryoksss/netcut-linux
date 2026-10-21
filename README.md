@@ -29,7 +29,17 @@ but it is reimplemented with native Linux tooling.
 ```bash
 git clone https://github.com/Aryoksss/netcut-linux
 cd netcut-linux
-./install.sh
+./install.sh          # check dependencies + install the launcher
+netcut --doctor       # make sure the environment is ready
+netcut                # open the dashboard + system tray
+```
+
+`install.sh` verifies the dependencies first and offers to add
+`~/.local/bin` to `~/.bashrc` so `netcut` can be called from anywhere. To
+install the dependencies as well:
+
+```bash
+sudo ./install.sh --with-deps
 ```
 
 The launcher is installed to `~/.local/bin/netcut` and the app appears in your
@@ -49,6 +59,9 @@ Without installing:
 | nftables | `nftables` | `nftables` |
 | OUI database | `hwdata` | `hwdata` |
 
+`netcut --doctor` checks all of these at once, together with your
+privileges and the mode that will be used.
+
 ### Privileges
 
 Blocking and limiting other devices requires `CAP_NET_RAW` (capture) and
@@ -60,7 +73,10 @@ Blocking and limiting other devices requires `CAP_NET_RAW` (capture) and
 3. **Otherwise** → fallback mode: whole-interface monitoring only, no control
 
 The active mode is shown in the dashboard header: `capture` (full) or
-`fallback-no-root` (limited).
+`fallback-no-root` (limited). In fallback mode the dashboard shows an amber
+banner and the Block/Limit buttons are disabled up front, so nothing fails
+on click without an explanation. `netcut --doctor` tells you how to enable
+the full mode.
 
 ## Usage
 
@@ -69,6 +85,7 @@ The active mode is shown in the dashboard header: `capture` (full) or
 ```bash
 netcut                          # open web GUI + system tray
 netcut --tray                   # system tray only
+netcut --doctor                 # check deps, privileges, mode, server status
 netcut --status                 # server status (URL, mode, host count)
 netcut --stop                   # stop the server
 netcut --port 8090              # use a different port
