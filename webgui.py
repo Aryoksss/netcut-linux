@@ -264,6 +264,15 @@ tr:hover .copybtn,.copybtn:focus-visible{opacity:1}
 tfoot td{position:sticky;bottom:0;background:var(--panel2);
   border-top:1px solid var(--line2);height:34px;font-family:var(--mono);
   font-size:12px;font-weight:600;color:var(--fg2);z-index:4}
+.fallback{display:flex;gap:10px;align-items:flex-start;
+  background:var(--warn-soft);border:1px solid var(--warn);
+  border-radius:var(--r);padding:11px 14px;margin-bottom:10px;
+  font-size:13px;line-height:1.55;color:var(--fg)}
+.fallback[hidden]{display:none}
+.fallback .ic{color:var(--warn);flex:none;margin-top:2px}
+.fallback b{color:var(--warn)}
+.fallback code{font-family:var(--mono);background:var(--panel2);
+  padding:1px 5px;border-radius:4px;border:1px solid var(--line)}
 .empty{padding:44px 20px;text-align:center;color:var(--dim)}
 .empty .ic{width:30px;height:30px;margin-bottom:10px;color:var(--line2);
   stroke-width:1.4}
@@ -554,6 +563,16 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel2);
     </table>
   </div>
 
+  <div id="fallback" class="fallback" hidden>
+    <svg class="ic"><use href="#i-alert"/></svg>
+    <div>
+      <b>Mode fallback — hanya monitoring, tanpa kontrol.</b>
+      Server tidak punya <code>CAP_NET_RAW</code>/<code>CAP_NET_ADMIN</code>,
+      jadi blokir &amp; limit dinonaktifkan. Jalankan <code>netcut --doctor</code>
+      untuk cek, atau jalankan lewat docker / <code>sudo</code> agar semua fitur aktif.
+    </div>
+  </div>
+
   <div id="notes"></div>
 
   <details class="foot">
@@ -810,12 +829,16 @@ function statusHTML(h) {
 
 function actHTML(h) {
   const bl = S.blocked.has(h.ip), lim = S.limited.has(h.ip);
+  // Di mode fallback server tidak punya hak nftables/ARP spoof, jadi tombol
+  // kontrol dimatikan dari awal. Lebih baik mati dengan penjelasan daripada
+  // gagal setelah diklik.
+  const dis = S.mode === "capture" ? "" : " disabled";
   let s = bl
-    ? `<button class="btn sm" data-act="unblock" data-ip="${esc(h.ip)}">Buka</button>`
-    : `<button class="btn sm danger" data-act="block" data-ip="${esc(h.ip)}">Blokir</button>`;
-  s += `<button class="btn sm" data-act="limit" data-ip="${esc(h.ip)}">Limit</button>`;
+    ? `<button class="btn sm" data-act="unblock" data-ip="${esc(h.ip)}"${dis}>Buka</button>`
+    : `<button class="btn sm danger" data-act="block" data-ip="${esc(h.ip)}"${dis}>Blokir</button>`;
+  s += `<button class="btn sm" data-act="limit" data-ip="${esc(h.ip)}"${dis}>Limit</button>`;
   if (lim)
-    s += `<button class="btn sm ghost" data-act="unlimit" data-ip="${esc(h.ip)}">×</button>`;
+    s += `<button class="btn sm ghost" data-act="unlimit" data-ip="${esc(h.ip)}"${dis}>×</button>`;
   return s;
 }
 
@@ -861,6 +884,11 @@ function render() {
     ? "Capture penuh: blokir, limit, dan ARP spoof aktif"
     : "Mode fallback: hanya total interface, tanpa kontrol blokir/limit";
   $("#pauseBadge").hidden = !S.paused;
+  const fallback = S.mode !== "capture";
+  $("#fallback").hidden = !fallback;
+  // tanpa hak nftables/ARP spoof tombol kontrol dimatikan, bukan gagal saat diklik
+  $("#bulkBlock").disabled = fallback;
+  $("#bulkLimit").disabled = fallback;
   setText($("#uptimeBadge"), fmtUptime(S.uptime));
   $("#uptimeBadge").title = "Uptime " + Math.round(S.uptime) + " detik";
 

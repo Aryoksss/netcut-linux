@@ -43,7 +43,10 @@ try:
     import scapy.all as scapy
     from scapy.layers.l2 import ARP, Ether, srp
 except ImportError:
-    print("error: butuh scapy. Install dengan: sudo dnf install python3-scapy", file=sys.stderr)
+    print("error: butuh scapy. Install dengan: sudo dnf install python3-scapy "
+          "(atau: sudo apt-get install python3-scapy)", file=sys.stderr)
+    print("      Alternatif tanpa scapy: sudo ./netcut.py --web "
+          "(mode fallback, tanpa ARP scan)", file=sys.stderr)
     sys.exit(1)
 
 ETH_P_ALL = 0x0003

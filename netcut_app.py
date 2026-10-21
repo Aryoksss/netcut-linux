@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -24,6 +25,7 @@ import urllib.request
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 NETCUT_PY = os.path.join(APP_DIR, "netcut.py")
 PID_FILE = os.path.expanduser("~/.cache/netcut/netcut.pid")
+LOG_FILE = os.path.expanduser("~/.cache/netcut/server.log")
 PORT = int(os.environ.get("NETCUT_PORT", "8080"))
 BASE = f"http://127.0.0.1:{PORT}"
 
@@ -34,6 +36,7 @@ class C:
 
     _ok = "\033[32m"
     _err = "\033[31m"
+    _warn = "\033[33m"
     _dim = "\033[2m"
     _b = "\033[1m"
     _off = "\033[0m"
@@ -58,9 +61,62 @@ class C:
     def red(cls, s: str) -> str:
         return f"{cls._err}{s}{cls._off}" if cls._on() else s
 
+    @classmethod
+    def yellow(cls, s: str) -> str:
+        return f"{cls._warn}{s}{cls._off}" if cls._on() else s
+
 
 def log(msg: str) -> None:
     print(f"{C.dim('[netcut]')} {msg}", flush=True)
+
+
+def _open_log():
+    """Buka file log server. Output subprocess dicatat di sini supaya
+    pesan error (mis. scapy kurang) tidak hilang begitu saja."""
+    try:
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        return open(LOG_FILE, "ab", buffering=0)
+    except OSError:
+        return subprocess.DEVNULL
+
+
+def log_tail(lines: int = 12) -> str:
+    """Ambil beberapa baris terakhir dari log server."""
+    try:
+        with open(LOG_FILE, "rb") as fh:
+            data = fh.read().decode(errors="replace").splitlines()
+        return "\n".join(data[-lines:])
+    except OSError:
+        return ""
+
+
+def show_server_error() -> None:
+    """Tampilkan kenapa server gagal start, kalau ada petalanya."""
+    state = {}
+    try:
+        with open(PID_FILE) as fh:
+            state = json.loads(fh.read() or "{}")
+    except (OSError, ValueError):
+        state = {}
+
+    if state.get("mode") == "docker":
+        try:
+            r = subprocess.run(["docker", "logs", "--tail", "12", "netcut-app"],
+                               capture_output=True, text=True, timeout=15)
+            out = (r.stdout + r.stderr).strip()
+            if out:
+                print(C.red("  output container:"))
+                for line in out.splitlines():
+                    print(C.dim("    " + line))
+                return
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    tail = log_tail()
+    if tail.strip():
+        print(C.red("  output server:"))
+        for line in tail.splitlines():
+            print(C.dim("    " + line))
 
 
 USAGE = f"""\
@@ -69,6 +125,7 @@ USAGE = f"""\
 {C.bold('Pakai:')} netcut [opsi]
 
   {C.bold('--tray')}            jalankan hanya di system tray (tanpa buka browser)
+  {C.bold('--doctor')}           cek environment: dependency, hak akses, mode
   {C.bold('--status')}          cek status server (URL, mode, jumlah host)
   {C.bold('--stop')}            hentikan server
   {C.bold('--port')} PORT       porta web GUI (default {PORT}, atau env NETCUT_PORT)
@@ -149,7 +206,7 @@ class Server:
         cmd = [sys.executable, NETCUT_PY, "--web", "--web-port", str(PORT)]
         log(f"menjalankan: {' '.join(cmd)}")
         self.proc = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            cmd, stdout=_open_log(), stderr=subprocess.STDOUT,
             start_new_session=True,
         )
         self._save_state({"mode": "native", "pid": self.proc.pid})
@@ -308,8 +365,11 @@ def notify(title: str, body: str, icon: str = "network-wireless") -> None:
 def run_gui(server: Server, tray_only: bool = False) -> int:
     """Jalankan web GUI, buka browser, dan (kalau bisa) system tray."""
     if not server.start():
-        log("gagal menjalankan server web")
+        log(C.red("gagal menjalankan server web"))
+        show_server_error()
+        print(C.dim(f"  log lengkap: {LOG_FILE}"))
         notify("netcut", "Gagal menjalankan web GUI", "dialog-error")
+        return 1
 
     def open_dashboard() -> None:
         try:
@@ -365,6 +425,91 @@ def _kill_other_instances() -> None:
             pass
 
 
+def doctor() -> int:
+    """Cek environment: dependency, hak akses, dan mode yang akan dipakai.
+
+    Dipakai user yang mau cek "kenapa belum jalan?" sebelum mulai.
+    """
+    problems = 0
+    print(f"{C.bold('netcut-linux')}  {C.dim('doctor')}\n")
+
+    print(f"  {C.bold('dependency')}")
+    try:
+        r = subprocess.run([sys.executable, "-c",
+                            "import scapy; print(scapy.__version__)"],
+                           capture_output=True, text=True, timeout=15)
+        if r.returncode == 0:
+            print(f"    scapy       : {C.green('OK')} {C.dim(r.stdout.strip())}")
+        else:
+            problems += 1
+            print(f"    scapy       : {C.red('hilang')}")
+            print(f"      {C.dim('sudo dnf install python3-scapy')}")
+    except (OSError, subprocess.SubprocessError):
+        problems += 1
+        print(f"    scapy       : {C.red('tidak bisa dicek')}")
+    for cmd, label in (("nft", "nftables"),):
+        if shutil.which(cmd):
+            print(f"    {label:<11} : {C.green('OK')}")
+        else:
+            problems += 1
+            print(f"    {label:<11} : {C.red('hilang')}")
+            print(f"      {C.dim('sudo dnf install ' + cmd)}")
+    if os.path.exists("/usr/share/hwdata/oui.txt"):
+        print(f"    {'OUI':<11} : {C.green('OK')}")
+    else:
+        print(f"    {'OUI':<11} : {C.yellow('hilang')}"
+              f" {C.dim('(vendor akan tampil unknown)')}")
+
+    print(f"\n  {C.bold('hak akses')}")
+    if os.geteuid() == 0:
+        print(f"    euid         : {C.green('root')}"
+              f" {C.dim('- semua fitur aktif')}")
+    else:
+        print(f"    euid         : {C.dim(str(os.geteuid()))}")
+    caps = Server.has_capture_privs()
+    if caps:
+        print(f"    CAP_NET_RAW  : {C.green('ada')}")
+    else:
+        print(f"    CAP_NET_RAW  : {C.dim('tidak ada')}")
+    docker_ok = Server.docker_usable()
+    if docker_ok:
+        print(f"    docker       : {C.green('OK')}"
+              f" {C.dim('- mode penuh via container')}")
+    else:
+        print(f"    docker       : {C.yellow('tidak ada / tidak bisa dipakai')}")
+
+    print(f"\n  {C.bold('mode yang akan dipakai')}")
+    if caps:
+        print(f"    {C.green('capture')}"
+              f" {C.dim('- blokir, limit, dan ARP spoof aktif')}")
+    elif docker_ok:
+        print(f"    {C.green('capture')} {C.dim('via container docker')}")
+        print(f"    {C.dim('container memakai --network=host --cap-add=NET_RAW ')}")
+        print(f"    {C.dim('--cap-add=NET_ADMIN, jadi aturannya kena di host.')}")
+    else:
+        print(f"    {C.yellow('fallback-no-root')}"
+              f" {C.dim('- hanya monitoring, tanpa kontrol')}")
+        print(f"    {C.dim('Supaya penuh: pakai docker, atau jalankan dengan sudo.')}")
+
+    print(f"\n  {C.bold('server')}")
+    srv = Server()
+    running = srv.is_running()
+    print(f"    status       : {C.green('running') if running else C.dim('stopped')}")
+    print(f"    dashboard    : {BASE}")
+    if running:
+        snap = snapshot()
+        if "hosts" in snap:
+            print(f"    mode         : {snap.get('mode', '?')}")
+            print(f"    interface    : {snap.get('iface', '?')}")
+
+    if problems:
+        print(f"\n  {C.red(str(problems) + ' masalah ditemukan di atas.')}")
+        print(f"  {C.dim('Perbaiki dulu, lalu jalankan: netcut')}")
+        return 1
+    print(f"\n  {C.green('Semua siap.')} Jalankan: {C.bold('netcut')}")
+    return 0
+
+
 def main() -> int:
     args = sys.argv[1:]
 
@@ -392,6 +537,9 @@ def main() -> int:
         # matikan juga proses app lain (tray) yang sedang jalan
         _kill_other_instances()
         return 0
+
+    if "--doctor" in args:
+        return doctor()
 
     if "--status" in args:
         srv = Server()
@@ -424,7 +572,9 @@ def main() -> int:
     try:
         if no_tray:
             if not server.start():
-                log("gagal menjalankan server web")
+                log(C.red("gagal menjalankan server web"))
+                show_server_error()
+                print(C.dim(f"  log lengkap: {LOG_FILE}"))
                 notify("netcut", "Gagal menjalankan web GUI", "dialog-error")
                 return 1
             print(f"{C.green('netcut-linux')} berjalan di {C.bold(BASE)}"
