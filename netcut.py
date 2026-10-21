@@ -129,6 +129,38 @@ def ip_to_bytes(ip: str) -> bytes:
 # capture
 # --------------------------------------------------------------------------
 
+def parse_neigh(text: str) -> list[tuple[str, str]]:
+    """Ambil pasangan (ip, mac) dari output `ip neigh show`.
+
+    Bentuk barisnya tergantung cara pemanggilan:
+
+        192.168.1.7 dev wlp0s20f3 lladdr aa:bb:cc:dd:ee:ff STALE   (tanpa filter)
+        192.168.1.7 lladdr aa:bb:cc:dd:ee:ff STALE                 (dev <iface>)
+
+    Keduanya harus diterima. Versi lama mewajibkan token ``dev`` di posisi
+    kedua, sehingga pemanggilan yang sudah memfilter per interface tidak pernah
+    menghasilkan satu host pun — tabel neighbour kernel jadi tidak pernah masuk
+    ke daftar host, dan perangkat yang sedang idle (mis. HP) hilang dari
+    dashboard setelah di-prune.
+    """
+    found: list[tuple[str, str]] = []
+    for line in text.splitlines():
+        parts = line.split()
+        if "lladdr" not in parts:
+            continue  # incomplete / FAILED / belum ada MAC
+        ip = parts[0]
+        if ":" in ip:
+            continue  # IPv6, bukan target tool ini
+        try:
+            mac = parts[parts.index("lladdr") + 1]
+        except IndexError:
+            continue
+        if mac in {"00:00:00:00:00:00", "incomplete"}:
+            continue
+        found.append((ip, mac))
+    return found
+
+
 class Sniffer:
     """Raw AF_PACKET capture, mode promiscuous seperti pcap_open_live.
 
@@ -357,22 +389,10 @@ class Sniffer:
             ).stdout
         except (OSError, subprocess.SubprocessError):
             return
-        for line in out.splitlines():
-            parts = line.split()
-            if len(parts) < 5:
-                continue
-            ip = parts[0]
-            if ":" in ip or parts[1] != "dev":
-                continue
+        for ip, mac in parse_neigh(out):
             # hanya host di subnet aktif yang relevan; entri dari subnet
             # sebelumnya harus diabaikan
             if self.local_nets and not self.is_local(ip):
-                continue
-            try:
-                mac = parts[parts.index("lladdr") + 1]
-            except (ValueError, IndexError):
-                continue
-            if mac in {"00:00:00:00:00:00", "incomplete"}:
                 continue
             host = self._touch(ip, mac)
             host.source = "neigh"

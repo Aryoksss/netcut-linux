@@ -160,6 +160,32 @@ def test_fmt_helpers():
     print("  ok  formatting helpers")
 
 
+def test_neigh_parser() -> None:
+    """parse_neigh harus menerima kedua bentuk output `ip neigh show`.
+
+    Regresi: dulu parser mewajibkan token `dev`, padahal pemanggilan dengan
+    `dev <iface>` tidak menyertakan token itu — akibatnya tabel neighbour
+    tidak pernah masuk dan perangkat idle hilang dari dashboard.
+    """
+    tanpa_filter = (
+        "192.168.1.7 dev wlp0s20f3 lladdr 32:e6:36:7f:7c:fe STALE\n"
+        "192.168.1.1 dev wlp0s20f3 lladdr 78:91:e9:bd:77:14 REACHABLE\n"
+        "fe80::30e6:36ff:fe7f:7cfe dev wlp0s20f3 lladdr 32:e6:36:7f:7c:fe STALE\n"
+    )
+    dengan_filter = (
+        "192.168.1.7 lladdr 32:e6:36:7f:7c:fe STALE\n"
+        "192.168.1.1 lladdr 78:91:e9:bd:77:14 REACHABLE\n"
+        "192.168.1.9 dev wlp0s20f3 FAILED\n"
+        "fe80::30e6:36ff:fe7f:7cfe lladdr 32:e6:36:7f:7c:fe STALE\n"
+    )
+    harap = [("192.168.1.7", "32:e6:36:7f:7c:fe"),
+             ("192.168.1.1", "78:91:e9:bd:77:14")]
+    assert nc.parse_neigh(tanpa_filter) == harap, nc.parse_neigh(tanpa_filter)
+    assert nc.parse_neigh(dengan_filter) == harap, nc.parse_neigh(dengan_filter)
+    assert nc.parse_neigh("") == []
+    print("  ok  parser ip neigh (dengan & tanpa filter dev)")
+
+
 if __name__ == "__main__":
     print("netcut parser unit tests:")
     for fn in (
@@ -172,6 +198,7 @@ if __name__ == "__main__":
         test_peer_traffic,
         test_no_double_count,
         test_fmt_helpers,
+        test_neigh_parser,
     ):
         fn()
     print("semua test lulus")
