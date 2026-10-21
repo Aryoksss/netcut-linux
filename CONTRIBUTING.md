@@ -33,6 +33,10 @@ Konvensi yang perlu dijaga:
 - Pencarian, filter, dan sortir berjalan **di sisi client** — jangan kirim
   request server untuk itu
 - Ada `tools/ui_test.py` yang menguji interaksi utama; jalankan sebelum push
+- Diagram arsitektur adalah **Mermaid**, bukan gambar. Sumbernya ada di
+  `assets/architecture.mmd` (Indonesia) dan `assets/architecture.en.mmd`
+  (Inggris); blok di kedua README di-*sync* dengan
+  `python3 tools/sync_diagram.py`. Jangan menyalin diagram manual ke README.
 
 ## Gaya kode
 

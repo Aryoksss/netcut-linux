@@ -172,7 +172,64 @@ Mod+Shift+N hotkey-overlay-title="NetCut" {
 
 ## How it works
 
-![How it works](assets/architecture.png)
+<!-- diagram:architecture -->
+```mermaid
+flowchart LR
+    subgraph LAN["LAYER 1 · Devices on the LAN — all over WiFi"]
+        HP["HP"]
+        LAP["Another laptop"]
+        TV["Smart TV"]
+        DST["dst."]
+    end
+
+    subgraph BOX["LAYER 2 · Linux laptop — netcut-linux runs here"]
+        SPOOF["ARP spoof<br/>point the victim's gateway<br/>at this laptop"]
+        SNIF["Sniffer<br/>raw AF_PACKET capture<br/>count bytes per host"]
+        NFT["nftables<br/>Block → drop<br/>Limit → rate-limit"]
+        RELAY["relay<br/>forward packets<br/>to the gateway"]
+        GUI["Web GUI + tray<br/>dashboard and controls<br/>127.0.0.1:8080 · REST API"]
+        DROP["packet dropped"]
+    end
+
+    RTR["LAYER 3 · Router<br/>gateway to the internet<br/>NAT · DHCP · WiFi AP"]
+
+    LAN ~~~ BOX
+    BOX ~~~ RTR
+
+    HP -->|"normal traffic"| RTR
+    LAP -->|"normal traffic"| RTR
+    TV -->|"normal traffic"| RTR
+    DST -->|"normal traffic"| RTR
+
+    SPOOF -.->|"forged ARP reply"| HP
+    HP ==>|"after ARP spoof"| SNIF
+    SNIF --> NFT
+    NFT -->|"Limit"| RELAY
+    NFT -->|"Block"| DROP
+    RELAY --> RTR
+
+    GUI -.->|"control"| NFT
+    GUI -.->|"control"| SPOOF
+
+    classDef device fill:#1e293b,stroke:#94a3b8,stroke-width:2px,color:#e2e8f0
+    classDef spoof fill:#881337,stroke:#fb7185,stroke-width:2px,color:#fff
+    classDef sniff fill:#083344,stroke:#22d3ee,stroke-width:2px,color:#fff
+    classDef nft fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#fff
+    classDef relay fill:#4c1d95,stroke:#a78bfa,stroke-width:2px,color:#fff
+    classDef gui fill:#0c4a6e,stroke:#60a5fa,stroke-width:2px,color:#fff
+    classDef router fill:#78350f,stroke:#fbbf24,stroke-width:2px,color:#fff
+    classDef drop fill:#450a0a,stroke:#ef5f6b,stroke-width:2px,color:#fff
+
+    class HP,LAP,TV,DST device
+    class SPOOF spoof
+    class SNIF sniff
+    class NFT nft
+    class RELAY relay
+    class GUI gui
+    class RTR router
+    class DROP drop
+```
+<!-- /diagram:architecture -->
 
 For rules on your laptop to affect another device's traffic, that traffic has
 to pass through the laptop first. That is achieved with ARP spoofing: the
@@ -183,6 +240,12 @@ here.
 - **Block** mode → packets reach the laptop and are dropped
 - **Limit** mode → packets reach the laptop, are forwarded to the gateway,
   but rate-limited
+
+| | |
+|---|---|
+| **Packet flow** | Devices → router: the normal path · After ARP spoof: devices → laptop · Sniffer counts bytes → nftables → relay · Relay forwards to the gateway |
+| **Operating modes** | `capture` — full monitoring + control · `fallback-no-root` — per-interface totals · The active mode shows in the dashboard header · Automatic rescan when the WiFi changes |
+| **Requirements** | `CAP_NET_RAW` — packet capture · `CAP_NET_ADMIN` — nftables rules · Alternative: docker container + `--network=host` · Dependencies: scapy, nftables, hwdata |
 
 ## Known limitations
 
@@ -233,6 +296,17 @@ synthetic demo data, so they contain no one's SSID or MAC addresses:
 
 ```bash
 python3 tools/make_screenshots.py   # requires firefox + Pillow
+```
+
+The architecture diagram is not an image but **Mermaid** — GitHub renders it
+directly inside the README, so it stays sharp at any size and is searchable.
+Its source lives in `assets/architecture.mmd` (Indonesian) and
+`assets/architecture.en.mmd` (English). Because the README has to inline the
+block, the sync is automated:
+
+```bash
+python3 tools/sync_diagram.py           # update the block in both READMEs
+python3 tools/sync_diagram.py --check   # check only (used by CI)
 ```
 
 ## Contributing

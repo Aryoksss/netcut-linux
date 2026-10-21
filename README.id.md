@@ -173,7 +173,64 @@ Mod+Shift+N hotkey-overlay-title="NetCut" {
 
 ## Cara kerja
 
-![Diagram cara kerja](assets/architecture.png)
+<!-- diagram:architecture -->
+```mermaid
+flowchart LR
+    subgraph LAN["LAPIS 1 · Perangkat di LAN — semua lewat WiFi"]
+        HP["HP"]
+        LAP["Laptop lain"]
+        TV["Smart TV"]
+        DST["dst."]
+    end
+
+    subgraph BOX["LAPIS 2 · Laptop Linux — netcut-linux berjalan di sini"]
+        SPOOF["ARP spoof<br/>arahkan gateway korban<br/>ke laptop ini"]
+        SNIF["Sniffer<br/>raw AF_PACKET capture<br/>hitung byte per host"]
+        NFT["nftables<br/>Blokir → drop<br/>Limit → rate-limit"]
+        RELAY["relay<br/>teruskan paket<br/>ke gateway"]
+        GUI["Web GUI + tray<br/>dashboard dan kontrol<br/>127.0.0.1:8080 · REST API"]
+        DROP["paket dibuang"]
+    end
+
+    RTR["LAPIS 3 · Router<br/>gateway ke internet<br/>NAT · DHCP · WiFi AP"]
+
+    LAN ~~~ BOX
+    BOX ~~~ RTR
+
+    HP -->|"trafik normal"| RTR
+    LAP -->|"trafik normal"| RTR
+    TV -->|"trafik normal"| RTR
+    DST -->|"trafik normal"| RTR
+
+    SPOOF -.->|"ARP reply palsu"| HP
+    HP ==>|"setelah ARP spoof"| SNIF
+    SNIF --> NFT
+    NFT -->|"Limit"| RELAY
+    NFT -->|"Blokir"| DROP
+    RELAY --> RTR
+
+    GUI -.->|"kontrol"| NFT
+    GUI -.->|"kontrol"| SPOOF
+
+    classDef device fill:#1e293b,stroke:#94a3b8,stroke-width:2px,color:#e2e8f0
+    classDef spoof fill:#881337,stroke:#fb7185,stroke-width:2px,color:#fff
+    classDef sniff fill:#083344,stroke:#22d3ee,stroke-width:2px,color:#fff
+    classDef nft fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#fff
+    classDef relay fill:#4c1d95,stroke:#a78bfa,stroke-width:2px,color:#fff
+    classDef gui fill:#0c4a6e,stroke:#60a5fa,stroke-width:2px,color:#fff
+    classDef router fill:#78350f,stroke:#fbbf24,stroke-width:2px,color:#fff
+    classDef drop fill:#450a0a,stroke:#ef5f6b,stroke-width:2px,color:#fff
+
+    class HP,LAP,TV,DST device
+    class SPOOF spoof
+    class SNIF sniff
+    class NFT nft
+    class RELAY relay
+    class GUI gui
+    class RTR router
+    class DROP drop
+```
+<!-- /diagram:architecture -->
 
 Agar aturan di laptop bisa menyentuh trafik device lain, trafiknya perlu
 melewati laptop lebih dulu. Hal itu dilakukan lewat ARP spoofing: korban diberi
@@ -183,6 +240,12 @@ laptop — lalu baru bisa di-drop atau di-rate-limit di sini.
 - Mode **Blokir** → paket masuk ke laptop lalu dibuang
 - Mode **Limit** → paket masuk ke laptop, diteruskan ke gateway, tapi
   dibatasi rate-nya
+
+| | |
+|---|---|
+| **Alur paket** | Perangkat → router: jalur normal · Setelah ARP spoof: perangkat → laptop · Sniffer hitung byte → nftables → relay · Relay teruskan ke gateway |
+| **Mode operasi** | `capture` — monitor + kontrol penuh · `fallback-no-root` — total per interface · Mode aktif tampil di header dashboard · Scan ulang otomatis saat pindah WiFi |
+| **Prasyarat** | `CAP_NET_RAW` — capture paket · `CAP_NET_ADMIN` — aturan nftables · Alternatif: container docker + `--network=host` · Dependency: scapy, nftables, hwdata |
 
 ## Batasan yang diketahui
 
@@ -231,6 +294,17 @@ jadi tidak memuat SSID atau MAC jaringan siapa pun:
 
 ```bash
 python3 tools/make_screenshots.py   # butuh firefox + Pillow
+```
+
+Diagram arsitektur bukan gambar, tapi **Mermaid** — GitHub merendernya
+langsung di README sehingga tetap tajam dan bisa dicari. Sumbernya ada di
+`assets/architecture.mmd` (Indonesia) dan `assets/architecture.en.mmd`
+(Inggris). Karena README harus berisi bloknya secara inline, sinkronisasi
+dilakukan otomatis:
+
+```bash
+python3 tools/sync_diagram.py           # perbarui blok di kedua README
+python3 tools/sync_diagram.py --check   # cek saja (dipakai CI)
 ```
 
 ## Kontribusi
