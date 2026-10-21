@@ -1,23 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Merek netcut-linux: tiga node, node tengah terisi. Mesin ini berada di
+     jalur antara perangkat dan gateway. Digambar untuk produk ini, bukan
+     perisai atau tanda larangan generik. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2d7ff9"/>
-      <stop offset="100%" stop-color="#1a4fb4"/>
-    </linearGradient>
-  </defs>
-
-  <rect x="4" y="4" width="120" height="120" rx="26" fill="url(#bg)"/>
-
-  <!-- sinyal wifi -->
-  <g fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round">
-    <path d="M30 54 a 52 52 0 0 1 68 0" opacity="0.95"/>
-    <path d="M43 68 a 33 33 0 0 1 42 0" opacity="0.95"/>
+  <rect x="4.5" y="4.5" width="119" height="119" rx="26" fill="#14171e"
+        stroke="#2b313d" stroke-width="2"/>
+  <g stroke="#4d9fe0" stroke-width="6" stroke-linecap="round">
+    <line x1="42" y1="64" x2="48" y2="64"/>
+    <line x1="80" y1="64" x2="86" y2="64"/>
   </g>
-  <circle cx="64" cy="86" r="10" fill="#ffffff"/>
-
-  <!-- garis potong (blokir) -->
-  <g stroke="#ff5a66" stroke-width="13" stroke-linecap="round">
-    <line x1="26" y1="26" x2="102" y2="102"/>
-  </g>
+  <circle cx="31" cy="64" r="11" fill="#4d9fe0"/>
+  <circle cx="97" cy="64" r="11" fill="#4d9fe0"/>
+  <circle cx="64" cy="64" r="14" fill="#4d9fe0"/>
 </svg>
