@@ -65,7 +65,8 @@ docker logs -f netcut     # lihat log
 docker rm -f netcut       # hentikan dan hapus
 ```
 
-Tag yang tersedia: `latest`, tag versi (`1.1.1`, `1.1`), dan `sha-<commit>`.
+Tag yang tersedia: `latest`, tag versi (`<major>.<minor>.<patch>` dan
+`<major>.<minor>`), dan `sha-<commit>`.
 
 <details>
 <summary>Alternatif: docker compose</summary>
@@ -102,8 +103,8 @@ di laptop yang tersambung lewat WiFi:
 
 ```
 mode  : capture
-iface : wlp0s20f3          <- interface WiFi host
-net   : 192.168.1.0/24     <- subnet LAN asli
+iface : wlan0              <- interface WiFi host, bukan bridge Docker
+net   : 192.168.0.0/24     <- subnet LAN Anda
 hosts : 3                  <- perangkat lain di jaringan itu
 ```
 

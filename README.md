@@ -65,7 +65,8 @@ docker logs -f netcut     # follow the logs
 docker rm -f netcut       # stop and remove
 ```
 
-Available tags: `latest`, version tags (`1.1.1`, `1.1`), and `sha-<commit>`.
+Available tags: `latest`, version tags (`<major>.<minor>.<patch>` and
+`<major>.<minor>`), and `sha-<commit>`.
 
 <details>
 <summary>Alternative: docker compose</summary>
@@ -102,8 +103,8 @@ GHCR image on a laptop connected over WiFi:
 
 ```
 mode  : capture
-iface : wlp0s20f3          <- host WiFi interface
-net   : 192.168.1.0/24     <- the real LAN subnet
+iface : wlan0              <- the host's WiFi interface, not the Docker bridge
+net   : 192.168.0.0/24     <- your real LAN subnet
 hosts : 3                  <- other devices on that network
 ```
 
